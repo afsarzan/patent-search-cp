@@ -45,6 +45,7 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                 <TableHead className="font-semibold text-foreground w-48">Inventors</TableHead>
                 <TableHead className="font-semibold text-foreground w-48">Assignee</TableHead>
                 <TableHead className="font-semibold text-foreground w-32">Date</TableHead>
+                <TableHead className="font-semibold text-foreground w-24">Source</TableHead>
                 <TableHead className="font-semibold text-foreground w-24 text-center">Link</TableHead>
               </TableRow>
             </TableHeader>
@@ -56,7 +57,7 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <TableCell className="font-mono text-sm font-medium text-primary">
-                    US{patent.patentNumber}
+                    {patent.patentNumber}
                   </TableCell>
                   <TableCell>
                     <div className="space-y-2">
@@ -98,6 +99,11 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                         {patent.grantDate}
                       </span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs whitespace-nowrap">
+                      {patent.provider}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-center">
                     <Button

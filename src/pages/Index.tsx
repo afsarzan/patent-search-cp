@@ -7,7 +7,8 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { StatsBar } from '@/components/StatsBar';
 import { TopSearchesChart } from '@/components/TopSearchesChart';
 import { GuidedWorkflowSection } from '@/components/GuidedWorkflowSection';
-import { searchPatents, Patent } from '@/lib/patentApi';
+import { ProviderSelector } from '@/components/ProviderSelector';
+import { searchPatents, Patent, PatentProvider } from '@/lib/patentApi';
 
 const Index = () => {
   const [patents, setPatents] = useState<Patent[]>([]);
@@ -17,6 +18,7 @@ const Index = () => {
   const [error, setError] = useState<string | undefined>();
   const [searchTime, setSearchTime] = useState<number | undefined>();
   const [currentQuery, setCurrentQuery] = useState('');
+  const [selectedProvider, setSelectedProvider] = useState<PatentProvider>('USPTO');
 
   const handleSearch = useCallback(async (query: string) => {
     setIsLoading(true);
@@ -25,7 +27,7 @@ const Index = () => {
     const startTime = performance.now();
 
     try {
-      const result = await searchPatents(query);
+      const result = await searchPatents(query, selectedProvider);
       const endTime = performance.now();
       setSearchTime((endTime - startTime) / 1000);
 
@@ -45,7 +47,7 @@ const Index = () => {
       setIsLoading(false);
       setHasSearched(true);
     }
-  }, []);
+  }, [selectedProvider]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,8 +63,15 @@ const Index = () => {
             </span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-            Search millions of patents from the USPTO database. Find innovations, prior art, and intellectual property insights instantly.
+            Search millions of patents from multiple databases worldwide. Find innovations, prior art, and intellectual property insights instantly.
           </p>
+          
+          {/* Provider Selector */}
+          <ProviderSelector 
+            selectedProvider={selectedProvider} 
+            onProviderChange={setSelectedProvider}
+          />
+          
           <SearchBar onSearch={handleSearch} isLoading={isLoading} />
         </div>
 
@@ -76,7 +85,7 @@ const Index = () => {
 
         {/* Stats Bar */}
         {hasSearched && !isLoading && !error && patents.length > 0 && (
-          <StatsBar total={total} searchTime={searchTime} query={currentQuery} />
+          <StatsBar total={total} searchTime={searchTime} query={currentQuery} provider={selectedProvider} />
         )}
 
         {/* Results Section */}
@@ -95,16 +104,34 @@ const Index = () => {
       <footer className="border-t border-border mt-20 py-8">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Data provided by the{' '}
+            Search across multiple patent databases including{' '}
             <a 
               href="https://patentsview.org" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-primary hover:underline"
             >
-              USPTO PatentsView API
+              USPTO
             </a>
-            . For research and educational purposes.
+            ,{' '}
+            <a 
+              href="https://www.epo.org" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              EPO
+            </a>
+            ,{' '}
+            <a 
+              href="https://www.wipo.int" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              WIPO
+            </a>
+            , and Google Patents. For research and educational purposes.
           </p>
         </div>
       </footer>

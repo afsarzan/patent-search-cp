@@ -1,12 +1,14 @@
 import { Database, Clock, Globe } from 'lucide-react';
+import { PatentProvider } from '@/lib/patentApi';
 
 interface StatsBarProps {
   total: number;
   searchTime?: number;
   query: string;
+  provider: PatentProvider;
 }
 
-export function StatsBar({ total, searchTime, query }: StatsBarProps) {
+export function StatsBar({ total, searchTime, query, provider }: StatsBarProps) {
   if (!query) return null;
 
   return (
@@ -30,7 +32,7 @@ export function StatsBar({ total, searchTime, query }: StatsBarProps) {
       <div className="flex items-center gap-2">
         <Globe className="h-4 w-4 text-primary" />
         <span className="text-sm text-muted-foreground">
-          Source: <span className="font-medium text-foreground">USPTO</span>
+          Source: <span className="font-medium text-foreground">{provider}</span>
         </span>
       </div>
     </div>
