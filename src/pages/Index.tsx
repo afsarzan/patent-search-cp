@@ -87,7 +87,7 @@ const Index = () => {
           
           {/* Back to Search Button - shown after search */}
           {hasSearched && !isLoading && (
-            <div className="mt-6 animate-fade-in">
+            <div className="mt-6 animate-fade-in text-left">
               <Button 
                 variant="outline" 
                 onClick={handleBackToSearch}
