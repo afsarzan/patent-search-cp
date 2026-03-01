@@ -9,6 +9,8 @@ import { TopSearchesChart } from '@/components/TopSearchesChart';
 import { GuidedWorkflowSection } from '@/components/GuidedWorkflowSection';
 import { ProviderSelector } from '@/components/ProviderSelector';
 import { searchPatents, Patent, PatentProvider } from '@/lib/patentApi';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft } from 'lucide-react';
 
 const Index = () => {
   const [patents, setPatents] = useState<Patent[]>([]);
@@ -49,6 +51,15 @@ const Index = () => {
     }
   }, [selectedProvider]);
 
+  const handleBackToSearch = () => {
+    setHasSearched(false);
+    setPatents([]);
+    setTotal(0);
+    setError(undefined);
+    setCurrentQuery('');
+    setSearchTime(undefined);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -73,6 +84,20 @@ const Index = () => {
           />
           
           <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+          
+          {/* Back to Search Button - shown after search */}
+          {hasSearched && !isLoading && (
+            <div className="mt-6 animate-fade-in">
+              <Button 
+                variant="outline" 
+                onClick={handleBackToSearch}
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Search Options
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Charts Section - shown when no search has been performed */}
