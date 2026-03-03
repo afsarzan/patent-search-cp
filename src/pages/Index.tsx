@@ -8,9 +8,10 @@ import { StatsBar } from '@/components/StatsBar';
 import { TopSearchesChart } from '@/components/TopSearchesChart';
 import { GuidedWorkflowSection } from '@/components/GuidedWorkflowSection';
 import { ProviderSelector } from '@/components/ProviderSelector';
+import { SaveSearchModal } from '@/components/projects/SaveSearchModal';
 import { searchPatents, Patent, PatentProvider } from '@/lib/patentApi';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Save } from 'lucide-react';
 
 const Index = () => {
   const [patents, setPatents] = useState<Patent[]>([]);
@@ -21,6 +22,7 @@ const Index = () => {
   const [searchTime, setSearchTime] = useState<number | undefined>();
   const [currentQuery, setCurrentQuery] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<PatentProvider>('USPTO');
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   const handleSearch = useCallback(async (query: string) => {
     setIsLoading(true);
@@ -110,7 +112,18 @@ const Index = () => {
 
         {/* Stats Bar */}
         {hasSearched && !isLoading && !error && patents.length > 0 && (
-          <StatsBar total={total} searchTime={searchTime} query={currentQuery} provider={selectedProvider} />
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <StatsBar total={total} searchTime={searchTime} query={currentQuery} provider={selectedProvider} />
+              <Button
+                onClick={() => setShowSaveModal(true)}
+                className="gap-2"
+              >
+                <Save className="h-4 w-4" />
+                Save to Project
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Results Section */}
@@ -160,6 +173,22 @@ const Index = () => {
           </p>
         </div>
       </footer>
+
+      {/* Save Search Modal */}
+      <SaveSearchModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        currentSearch={{
+          queryString: currentQuery,
+          providers: [selectedProvider],
+          filters: {},
+          results: patents,
+          stats: {
+            total,
+            resultCount: patents.length,
+          },
+        }}
+      />
     </div>
   );
 };
