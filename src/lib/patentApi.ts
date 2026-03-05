@@ -404,7 +404,7 @@ export async function searchPatents(
       break;
   }
   
-  // Filter patents based on query matching title, abstract, or assignee
+  // Filter patents based on query matching title, abstract, assignee, or inventor
   const filteredPatents = dataSource.filter(patent => 
     patent.title.toLowerCase().includes(lowerQuery) ||
     patent.abstract.toLowerCase().includes(lowerQuery) ||
@@ -412,12 +412,15 @@ export async function searchPatents(
     patent.inventors.some(inv => inv.toLowerCase().includes(lowerQuery))
   );
 
-  // If no specific match, return all patents from the selected provider (simulating broad search)
-  const results = filteredPatents.length > 0 ? filteredPatents : dataSource;
+  const safePerPage = Math.max(1, perPage);
+  const safePage = Math.max(1, page);
+  const startIndex = (safePage - 1) * safePerPage;
+  const endIndex = startIndex + safePerPage;
+  const paginatedResults = filteredPatents.slice(startIndex, endIndex);
 
   return {
-    patents: results,
-    total: results.length,
+    patents: paginatedResults,
+    total: filteredPatents.length,
     provider
   };
 }
@@ -447,11 +450,9 @@ export async function searchAllProviders(query: string): Promise<PatentSearchRes
     patent.inventors.some(inv => inv.toLowerCase().includes(lowerQuery))
   );
 
-  const results = filteredPatents.length > 0 ? filteredPatents : allPatents;
-
   return {
-    patents: results,
-    total: results.length,
+    patents: filteredPatents,
+    total: filteredPatents.length,
     provider: 'Google Patents' // Google Patents as aggregator
   };
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -112,7 +113,7 @@ export const ProjectsPage = () => {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild>
-                        <a href={`/projects/${project.id}`}>View Project</a>
+                        <Link to={`/projects/${project.id}`}>View Project</Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem>
                         <Share2 className="h-4 w-4 mr-2" />
@@ -165,10 +166,10 @@ export const ProjectsPage = () => {
                     className="w-full"
                     variant="outline"
                   >
-                    <a href={`/projects/${project.id}`}>
+                    <Link to={`/projects/${project.id}`}>
                       <Eye className="h-4 w-4 mr-2" />
                       View
-                    </a>
+                    </Link>
                   </Button>
                 </div>
               </CardContent>

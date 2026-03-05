@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -46,10 +46,10 @@ export const ProjectDetailPage = () => {
       {/* Header */}
       <div className="mb-8">
         <Button asChild variant="ghost" className="mb-4">
-          <a href="/projects" className="gap-2">
+          <Link to="/projects" className="gap-2">
             <ArrowLeft className="h-4 w-4" />
             Back to Projects
-          </a>
+          </Link>
         </Button>
 
         <div className="flex items-start justify-between">
