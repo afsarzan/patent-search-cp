@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { Patent, PatentProvider } from '@/lib/patentApi';
 import { Project } from '@/types/projects';
+import { createProject, listProjects, saveSearchToProject } from '@/lib/projectRepository';
 
 interface SaveSearchModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const SaveSearchModal = ({
   onClose,
   currentSearch,
 }: SaveSearchModalProps) => {
+  const queryClient = useQueryClient();
   const [projectMode, setProjectMode] = useState<'existing' | 'new'>('existing');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [newProjectName, setNewProjectName] = useState('');
@@ -36,11 +38,7 @@ export const SaveSearchModal = ({
 
   const { data: projectsData } = useQuery<{ projects: Project[] }>({
     queryKey: ['projects'],
-    queryFn: async () => {
-      const res = await fetch('/api/projects');
-      if (!res.ok) throw new Error('Failed to fetch projects');
-      return res.json();
-    },
+    queryFn: listProjects,
     enabled: isOpen && projectMode === 'existing',
   });
 
@@ -50,43 +48,31 @@ export const SaveSearchModal = ({
 
       // Create new project if needed
       if (projectMode === 'new') {
-        const createRes = await fetch('/api/projects', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: newProjectName,
-            description: newProjectDescription || undefined,
-            defaultProvider: currentSearch.providers[0] || 'USPTO',
-          }),
+        const newProject = await createProject({
+          name: newProjectName,
+          description: newProjectDescription || undefined,
+          defaultProvider: currentSearch.providers[0] || 'USPTO',
         });
-        if (!createRes.ok) throw new Error('Failed to create project');
-        const newProject = await createRes.json();
         projectId = newProject.id;
       }
 
       if (!projectId) throw new Error('No project selected');
 
       // Save search to project
-      const res = await fetch(`/api/projects/${projectId}/searches`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          queryString: currentSearch.queryString,
-          providers: currentSearch.providers,
-          filters: currentSearch.filters || {},
-          cachedResults: currentSearch.results,
-          cachedStats: currentSearch.stats || {
-            total: currentSearch.results.length,
-            resultCount: currentSearch.results.length,
-          },
-          notes: notes || undefined,
-        }),
+      return saveSearchToProject(projectId, {
+        queryString: currentSearch.queryString,
+        providers: currentSearch.providers,
+        filters: currentSearch.filters || {},
+        cachedResults: currentSearch.results,
+        cachedStats: currentSearch.stats || {
+          total: currentSearch.results.length,
+          resultCount: currentSearch.results.length,
+        },
+        notes: notes || undefined,
       });
-
-      if (!res.ok) throw new Error('Failed to save search');
-      return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       onClose();
       // Reset form
       setProjectMode('existing');

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trash2, ExternalLink } from 'lucide-react';
 import { PatentReference, Collection } from '@/types/projects';
+import { deletePinnedPatent } from '@/lib/projectRepository';
 
 interface PatentsTabProps {
   projectId: number;
@@ -17,18 +18,14 @@ export const PatentsTab = ({
   patents,
   collections,
 }: PatentsTabProps) => {
+  const queryClient = useQueryClient();
   const [selectedCollection, setSelectedCollection] = useState<number | null>(null);
 
   const deletePatentMutation = useMutation({
-    mutationFn: async (patentRefId: number) => {
-      const res = await fetch(
-        `/api/projects/${projectId}/patents/${patentRefId}`,
-        {
-          method: 'DELETE',
-        }
-      );
-      if (!res.ok) throw new Error('Failed to delete patent');
-      return res.json();
+    mutationFn: async (patentRefId: number) => deletePinnedPatent(projectId, patentRefId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 

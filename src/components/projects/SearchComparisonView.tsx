@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { SearchComparisonResponse } from '@/types/projects';
 import { FilingTrendsChart } from '@/components/charts/FilingTrendsChart';
 import { AssigneeDistributionChart } from '@/components/charts/AssigneeDistributionChart';
+import { compareSavedSearches } from '@/lib/projectRepository';
 
 interface SearchComparisonViewProps {
   projectId: number;
@@ -20,13 +21,7 @@ export const SearchComparisonView = ({
 }: SearchComparisonViewProps) => {
   const { data: comparisonData, isLoading } = useQuery({
     queryKey: ['comparison', projectId, searchIds],
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/projects/${projectId}/searches/compare?ids=${searchIds.join(',')}`
-      );
-      if (!res.ok) throw new Error('Failed to fetch comparison');
-      return res.json() as Promise<SearchComparisonResponse>;
-    },
+    queryFn: () => compareSavedSearches(projectId, searchIds),
     enabled: searchIds.length > 0,
   });
 

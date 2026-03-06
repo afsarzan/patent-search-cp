@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { archiveProject, deleteProject, listProjects } from '@/lib/projectRepository';
 
 export const ProjectsPage = () => {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
@@ -20,34 +21,18 @@ export const ProjectsPage = () => {
 
   const { data: projectsData, isLoading, refetch } = useQuery({
     queryKey: ['projects'],
-    queryFn: async () => {
-      const res = await fetch('/api/projects');
-      if (!res.ok) throw new Error('Failed to fetch projects');
-      return res.json();
-    },
+    queryFn: listProjects,
   });
 
   const deleteProjectMutation = useMutation({
-    mutationFn: async (projectId: number) => {
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to delete project');
-      return res.json();
-    },
+    mutationFn: deleteProject,
     onSuccess: () => {
       refetch();
     },
   });
 
   const archiveProjectMutation = useMutation({
-    mutationFn: async (projectId: number) => {
-      const res = await fetch(`/api/projects/${projectId}/archive`, {
-        method: 'PATCH',
-      });
-      if (!res.ok) throw new Error('Failed to archive project');
-      return res.json();
-    },
+    mutationFn: archiveProject,
     onSuccess: () => {
       refetch();
     },

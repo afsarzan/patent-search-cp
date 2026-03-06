@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
+import { createProject } from '@/lib/projectRepository';
 
 interface NewProjectModalProps {
   onClose: () => void;
@@ -13,25 +14,20 @@ interface NewProjectModalProps {
 }
 
 export const NewProjectModal = ({ onClose, onSuccess }: NewProjectModalProps) => {
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [defaultProvider, setDefaultProvider] = useState('USPTO');
 
   const createProjectMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch('/api/projects', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          description: description || undefined,
-          defaultProvider,
-        }),
-      });
-      if (!res.ok) throw new Error('Failed to create project');
-      return res.json();
-    },
+    mutationFn: async () =>
+      createProject({
+        name,
+        description: description || undefined,
+        defaultProvider,
+      }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
       onSuccess();
     },
   });

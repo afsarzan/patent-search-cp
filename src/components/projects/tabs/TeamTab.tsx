@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/select';
 import { Users, UserPlus, Copy, Trash2, Loader2 } from 'lucide-react';
 import { ProjectShare } from '@/types/projects';
+import { addProjectShare, removeProjectShare, updateProjectShareRole } from '@/lib/projectRepository';
 
 interface TeamTabProps {
   projectId: number;
@@ -21,6 +22,7 @@ interface TeamTabProps {
 }
 
 export const TeamTab = ({ projectId, shares, ownerId }: TeamTabProps) => {
+  const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('VIEWER');
   const [copied, setCopied] = useState(false);
@@ -29,41 +31,32 @@ export const TeamTab = ({ projectId, shares, ownerId }: TeamTabProps) => {
     mutationFn: async () => {
       if (!inviteEmail.trim()) return;
 
-      const res = await fetch(`/api/projects/${projectId}/shares`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userEmail: inviteEmail,
-          role: inviteRole,
-        }),
+      return addProjectShare(projectId, {
+        userEmail: inviteEmail,
+        role: inviteRole as 'OWNER' | 'EDITOR' | 'VIEWER',
       });
-      if (!res.ok) throw new Error('Failed to invite collaborator');
-      return res.json();
     },
     onSuccess: () => {
       setInviteEmail('');
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 
   const removeCollaboratorMutation = useMutation({
-    mutationFn: async (shareId: number) => {
-      const res = await fetch(`/api/projects/${projectId}/shares/${shareId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to remove collaborator');
-      return res.json();
+    mutationFn: async (shareId: number) => removeProjectShare(projectId, shareId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 
   const updateRoleMutation = useMutation({
-    mutationFn: async ({ shareId, newRole }: { shareId: number; newRole: string }) => {
-      const res = await fetch(`/api/projects/${projectId}/shares/${shareId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: newRole }),
-      });
-      if (!res.ok) throw new Error('Failed to update role');
-      return res.json();
+    mutationFn: async ({ shareId, newRole }: { shareId: number; newRole: string }) =>
+      updateProjectShareRole(projectId, shareId, newRole as 'OWNER' | 'EDITOR' | 'VIEWER'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 

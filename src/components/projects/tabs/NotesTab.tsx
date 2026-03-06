@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Trash2, MessageCircle, Loader2 } from 'lucide-react';
 import { Comment } from '@/types/projects';
+import { addProjectComment, deleteProjectComment } from '@/lib/projectRepository';
 
 interface NotesTabProps {
   projectId: number;
@@ -12,35 +13,28 @@ interface NotesTabProps {
 }
 
 export const NotesTab = ({ projectId, comments }: NotesTabProps) => {
+  const queryClient = useQueryClient();
   const [newComment, setNewComment] = useState('');
 
   const addCommentMutation = useMutation({
     mutationFn: async () => {
       if (!newComment.trim()) return;
 
-      const res = await fetch(`/api/projects/${projectId}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          resourceType: 'project',
-          content: newComment,
-        }),
+      return addProjectComment(projectId, {
+        resourceType: 'project',
+        content: newComment,
       });
-      if (!res.ok) throw new Error('Failed to add comment');
-      return res.json();
     },
     onSuccess: () => {
       setNewComment('');
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
     },
   });
 
   const deleteCommentMutation = useMutation({
-    mutationFn: async (commentId: number) => {
-      const res = await fetch(`/api/projects/${projectId}/comments/${commentId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to delete comment');
-      return res.json();
+    mutationFn: async (commentId: number) => deleteProjectComment(projectId, commentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
     },
   });
 

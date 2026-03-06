@@ -9,6 +9,7 @@ import { SearchesTab } from '@/components/projects/tabs/SearchesTab';
 import { PatentsTab } from '@/components/projects/tabs/PatentsTab';
 import { NotesTab } from '@/components/projects/tabs/NotesTab';
 import { TeamTab } from '@/components/projects/tabs/TeamTab';
+import { getProjectDetail } from '@/lib/projectRepository';
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -20,9 +21,7 @@ export const ProjectDetailPage = () => {
     queryKey: ['project', projectIdNum],
     queryFn: async () => {
       if (!projectIdNum) throw new Error('Invalid project ID');
-      const res = await fetch(`/api/projects/${projectIdNum}`);
-      if (!res.ok) throw new Error('Failed to fetch project');
-      return res.json();
+      return getProjectDetail(projectIdNum);
     },
     enabled: !!projectIdNum,
   });

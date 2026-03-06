@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { deleteSavedSearch } from '@/lib/projectRepository';
 
 interface SearchesTabProps {
   projectId: number;
@@ -27,13 +28,12 @@ export const SearchesTab = ({
   selectedSearchIds,
   onSelectSearch,
 }: SearchesTabProps) => {
+  const queryClient = useQueryClient();
   const deleteSearchMutation = useMutation({
-    mutationFn: async (searchId: number) => {
-      const res = await fetch(`/api/projects/${projectId}/searches/${searchId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) throw new Error('Failed to delete search');
-      return res.json();
+    mutationFn: async (searchId: number) => deleteSavedSearch(projectId, searchId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 
