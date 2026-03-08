@@ -111,7 +111,7 @@ export const PatentsTab = ({
                     asChild
                   >
                     <a
-                      href={`https://patents.google.com/patent/${patent.patentId}`}
+                      href={patent.patentData.url || `https://patents.google.com/patent/${patent.patentId}`}
                       target="_blank"
                       rel="noopener noreferrer"
                     >

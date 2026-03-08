@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Patent } from '@/lib/patentApi';
-import { ExternalLink, Users, Building2, Calendar } from 'lucide-react';
+import { ExternalLink, Users, Building2, Calendar, Pin } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -10,6 +11,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { PinPatentModal } from '@/components/projects/PinPatentModal';
 
 interface PatentTableProps {
   patents: Patent[];
@@ -17,6 +19,8 @@ interface PatentTableProps {
 }
 
 export function PatentTable({ patents, total }: PatentTableProps) {
+  const [selectedPatent, setSelectedPatent] = useState<Patent | null>(null);
+
   if (patents.length === 0) {
     return null;
   }
@@ -46,7 +50,7 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                 <TableHead className="font-semibold text-foreground w-48">Assignee</TableHead>
                 <TableHead className="font-semibold text-foreground w-32">Date</TableHead>
                 <TableHead className="font-semibold text-foreground w-24">Source</TableHead>
-                <TableHead className="font-semibold text-foreground w-24 text-center">Link</TableHead>
+                <TableHead className="font-semibold text-foreground w-48 text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -106,21 +110,32 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      asChild
-                      className="hover:bg-primary/10 hover:text-primary"
-                    >
-                      <a 
-                        href={patent.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        aria-label={`View patent ${patent.patentNumber}`}
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                        className="hover:bg-primary/10 hover:text-primary"
                       >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
+                        <a
+                          href={patent.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`View patent ${patent.patentNumber}`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => setSelectedPatent(patent)}
+                      >
+                        <Pin className="h-3.5 w-3.5" />
+                        Pin
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -128,6 +143,12 @@ export function PatentTable({ patents, total }: PatentTableProps) {
           </Table>
         </div>
       </div>
+
+      <PinPatentModal
+        isOpen={selectedPatent !== null}
+        onClose={() => setSelectedPatent(null)}
+        patent={selectedPatent}
+      />
     </div>
   );
 }

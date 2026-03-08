@@ -46,6 +46,7 @@ export interface PatentReference {
   projectId: number;
   patentId: string;
   patentData: {
+    patentNumber?: string;
     title: string;
     assignee: string;
     abstract: string;
@@ -53,6 +54,7 @@ export interface PatentReference {
     grantDate: string;
     inventors: string[];
     provider: string;
+    url?: string;
   };
   pinnedAt: string;
   notes?: string;

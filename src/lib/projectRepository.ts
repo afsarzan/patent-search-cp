@@ -55,6 +55,17 @@ interface AddShareInput {
   role: 'OWNER' | 'EDITOR' | 'VIEWER';
 }
 
+interface CreateCollectionInput {
+  name: string;
+  description?: string;
+}
+
+interface PinPatentInput {
+  patent: Patent;
+  notes?: string;
+  collectionId?: number;
+}
+
 const STORAGE_KEY = 'patent-explorer:project-store:v1';
 const CURRENT_USER_ID = 1;
 
@@ -438,6 +449,94 @@ export async function deletePinnedPatent(projectId: number, patentReferenceId: n
     if (project) project.updatedAt = nowIso();
 
     return { success: true };
+  });
+}
+
+export async function listProjectCollections(projectId: number) {
+  const collections = withStore((store) =>
+    store.collections
+      .filter((collection) => collection.projectId === projectId)
+      .sort((a, b) => a.name.localeCompare(b.name))
+  );
+
+  return { collections };
+}
+
+export async function createProjectCollection(projectId: number, input: CreateCollectionInput) {
+  return withStore((store) => {
+    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
+    if (!project) throw new Error('Project not found');
+
+    const existing = store.collections.find(
+      (collection) =>
+        collection.projectId === projectId &&
+        collection.name.trim().toLowerCase() === input.name.trim().toLowerCase()
+    );
+
+    if (existing) return existing;
+
+    const collection: Collection = {
+      id: nextId(store, 'collection'),
+      projectId,
+      name: input.name.trim(),
+      description: input.description?.trim() || undefined,
+      createdAt: nowIso(),
+    };
+
+    store.collections.push(collection);
+    project.updatedAt = nowIso();
+    return collection;
+  });
+}
+
+export async function pinPatentToProject(projectId: number, input: PinPatentInput) {
+  return withStore((store) => {
+    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
+    if (!project) throw new Error('Project not found');
+
+    const existing = store.patents.find(
+      (patent) => patent.projectId === projectId && patent.patentId === input.patent.patentNumber
+    );
+
+    if (existing) {
+      if (input.notes?.trim()) {
+        existing.notes = input.notes.trim();
+      }
+
+      if (input.collectionId) {
+        const nextCollectionIds = new Set(existing.collectionIds || []);
+        nextCollectionIds.add(input.collectionId);
+        existing.collectionIds = Array.from(nextCollectionIds);
+      }
+
+      project.updatedAt = nowIso();
+      return existing;
+    }
+
+    const reference: PatentReference = {
+      id: nextId(store, 'patent'),
+      projectId,
+      patentId: input.patent.patentNumber,
+      patentData: {
+        patentNumber: input.patent.patentNumber,
+        title: input.patent.title,
+        assignee: input.patent.assignee,
+        abstract: input.patent.abstract,
+        filingDate: input.patent.filingDate,
+        grantDate: input.patent.grantDate,
+        inventors: input.patent.inventors,
+        provider: input.patent.provider,
+        url: input.patent.url,
+      },
+      pinnedAt: nowIso(),
+      notes: input.notes?.trim() || undefined,
+      collectionIds: input.collectionId ? [input.collectionId] : undefined,
+    };
+
+    store.patents.push(reference);
+    project.updatedAt = nowIso();
+
+    return reference;
   });
 }
 

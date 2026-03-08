@@ -3,9 +3,11 @@ import {
   __resetProjectStoreForTests,
   addProjectComment,
   addProjectShare,
+  createProjectCollection,
   createProject,
   getProjectDetail,
   listProjects,
+  pinPatentToProject,
   saveSearchToProject,
 } from './projectRepository';
 
@@ -87,5 +89,34 @@ describe('projectRepository', () => {
     expect(detail.comments[0].content).toContain('Initial findings');
     expect(detail.shares.length).toBeGreaterThanOrEqual(2);
     expect(detail.shares.some((share) => share.user?.email === 'teammate@example.com')).toBe(true);
+  });
+
+  it('pins a patent to a project and attaches a collection', async () => {
+    const project = await createProject({ name: 'Pinning Project' });
+    const collection = await createProjectCollection(project.id, { name: 'Core Prior Art' });
+
+    await pinPatentToProject(project.id, {
+      patent: {
+        id: 'abc-123',
+        patentNumber: 'US1234567',
+        title: 'Thermal management layer',
+        abstract: 'A method for passive heat dissipation.',
+        inventors: ['Alice Smith'],
+        assignee: 'HeatTech Labs',
+        filingDate: '2021-05-20',
+        grantDate: '2024-02-12',
+        url: 'https://patents.google.com/patent/US1234567',
+        provider: 'USPTO',
+      },
+      notes: 'Relevant to baseline architecture',
+      collectionId: collection.id,
+    });
+
+    const detail = await getProjectDetail(project.id);
+
+    expect(detail.pinnedPatents).toHaveLength(1);
+    expect(detail.collections).toHaveLength(1);
+    expect(detail.pinnedPatents[0].patentData.url).toContain('US1234567');
+    expect(detail.pinnedPatents[0].collectionIds).toContain(collection.id);
   });
 });
