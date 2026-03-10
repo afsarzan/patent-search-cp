@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Folder, Plus, Share2, Archive, Trash2, Eye, MoreHorizontal } from 'lucide-react';
 import { Project } from '@/types/projects';
 import { NewProjectModal } from '@/components/projects/NewProjectModal';
+import { Header } from '@/components/Header';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +47,9 @@ export const ProjectsPage = () => {
   const hasProjects = projects.length > 0;
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <>
+      <Header />
+      <div className="container mx-auto px-4 py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-4xl font-bold text-foreground">My Projects</h1>
@@ -172,7 +175,8 @@ export const ProjectsPage = () => {
           }}
         />
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
