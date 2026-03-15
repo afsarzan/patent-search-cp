@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft } from 'lucide-react';
 import { Project } from '@/types/projects';
@@ -18,7 +19,7 @@ export const ProjectDetailPage = () => {
 
   const projectIdNum = projectId ? parseInt(projectId, 10) : null;
 
-  const { data: projectData, isLoading } = useQuery({
+  const { data: projectData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['project', projectIdNum],
     queryFn: async () => {
       if (!projectIdNum) throw new Error('Invalid project ID');
@@ -41,6 +42,30 @@ export const ProjectDetailPage = () => {
       <>
         <Header />
         <div className="flex justify-center py-12">Loading project...</div>
+      </>
+    );
+  }
+
+  if (isError) {
+    return (
+      <>
+        <Header />
+        <div className="container mx-auto px-4 py-12">
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle>Unable to load project</CardTitle>
+              <CardDescription>
+                {error instanceof Error ? error.message : 'Something went wrong while loading this project.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex gap-2">
+              <Button onClick={() => refetch()}>Try Again</Button>
+              <Button asChild variant="outline">
+                <Link to="/projects">Back to Projects</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </>
     );
   }

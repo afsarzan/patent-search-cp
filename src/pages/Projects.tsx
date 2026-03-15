@@ -20,7 +20,7 @@ export const ProjectsPage = () => {
   const [showNewProjectModal, setShowNewProjectModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
-  const { data: projectsData, isLoading, refetch } = useQuery({
+  const { data: projectsData, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['projects'],
     queryFn: listProjects,
   });
@@ -41,6 +41,27 @@ export const ProjectsPage = () => {
 
   if (isLoading) {
     return <div className="flex justify-center py-12">Loading projects...</div>;
+  }
+
+  if (isError) {
+    return (
+      <>
+        <Header />
+        <div className="container mx-auto px-4 py-12">
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle>Unable to load projects</CardTitle>
+              <CardDescription>
+                {error instanceof Error ? error.message : 'Something went wrong while loading your projects.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => refetch()}>Try Again</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </>
+    );
   }
 
   const projects = projectsData?.projects || [];
