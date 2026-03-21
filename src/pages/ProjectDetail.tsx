@@ -10,12 +10,14 @@ import { SearchesTab } from '@/components/projects/tabs/SearchesTab';
 import { PatentsTab } from '@/components/projects/tabs/PatentsTab';
 import { NotesTab } from '@/components/projects/tabs/NotesTab';
 import { TeamTab } from '@/components/projects/tabs/TeamTab';
+import { SearchComparisonView } from '@/components/projects/SearchComparisonView';
 import { getProjectDetail } from '@/lib/projectRepository';
 import { Header } from '@/components/Header';
 
 export const ProjectDetailPage = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const [selectedSearchIds, setSelectedSearchIds] = useState<number[]>([]);
+  const [comparisonSearchIds, setComparisonSearchIds] = useState<number[] | null>(null);
 
   const projectIdNum = projectId ? parseInt(projectId, 10) : null;
 
@@ -109,55 +111,67 @@ export const ProjectDetailPage = () => {
         </div>
       
 
-        {/* Tabs */}
-        <Tabs defaultValue="searches" className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-4">
-            <TabsTrigger value="searches">Searches</TabsTrigger>
-            <TabsTrigger value="patents">Patents</TabsTrigger>
-            <TabsTrigger value="notes">Notes</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
-          </TabsList>
+        {comparisonSearchIds ? (
+          <SearchComparisonView
+            projectId={projectIdNum}
+            searchIds={comparisonSearchIds}
+            onBack={() => setComparisonSearchIds(null)}
+          />
+        ) : (
+          /* Tabs */
+          <Tabs defaultValue="searches" className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-4">
+              <TabsTrigger value="searches">Searches</TabsTrigger>
+              <TabsTrigger value="patents">Patents</TabsTrigger>
+              <TabsTrigger value="notes">Notes</TabsTrigger>
+              <TabsTrigger value="team">Team</TabsTrigger>
+            </TabsList>
 
-          <div className="mt-6">
-            <TabsContent value="searches">
-              <SearchesTab
-                projectId={projectIdNum}
-                searches={projectData?.searches || []}
-                selectedSearchIds={selectedSearchIds}
-                onSelectSearch={(id) =>
-                  setSelectedSearchIds((prev) =>
-                    prev.includes(id)
-                      ? prev.filter((x) => x !== id)
-                      : [...prev, id]
-                  )
-                }
-              />
-            </TabsContent>
+            <div className="mt-6">
+              <TabsContent value="searches">
+                <SearchesTab
+                  projectId={projectIdNum}
+                  searches={projectData?.searches || []}
+                  selectedSearchIds={selectedSearchIds}
+                  onSelectSearch={(id) =>
+                    setSelectedSearchIds((prev) =>
+                      prev.includes(id)
+                        ? prev.filter((x) => x !== id)
+                        : [...prev, id]
+                    )
+                  }
+                  onCompare={(searchIds) => {
+                    if (searchIds.length < 2) return;
+                    setComparisonSearchIds(searchIds);
+                  }}
+                />
+              </TabsContent>
 
-            <TabsContent value="patents">
-              <PatentsTab
-                projectId={projectIdNum}
-                patents={projectData?.pinnedPatents || []}
-                collections={projectData?.collections || []}
-              />
-            </TabsContent>
+              <TabsContent value="patents">
+                <PatentsTab
+                  projectId={projectIdNum}
+                  patents={projectData?.pinnedPatents || []}
+                  collections={projectData?.collections || []}
+                />
+              </TabsContent>
 
-            <TabsContent value="notes">
-              <NotesTab
-                projectId={projectIdNum}
-                comments={projectData?.comments || []}
-              />
-            </TabsContent>
+              <TabsContent value="notes">
+                <NotesTab
+                  projectId={projectIdNum}
+                  comments={projectData?.comments || []}
+                />
+              </TabsContent>
 
-            <TabsContent value="team">
-              <TeamTab
-                projectId={projectIdNum}
-                shares={projectData?.shares || []}
-                ownerId={project.ownerId}
-              />
-            </TabsContent>
-          </div>
-        </Tabs>
+              <TabsContent value="team">
+                <TeamTab
+                  projectId={projectIdNum}
+                  shares={projectData?.shares || []}
+                  ownerId={project.ownerId}
+                />
+              </TabsContent>
+            </div>
+          </Tabs>
+        )}
       </div>
     </>
   );

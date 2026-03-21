@@ -20,6 +20,7 @@ interface SearchesTabProps {
   searches: SavedSearch[];
   selectedSearchIds: number[];
   onSelectSearch: (id: number) => void;
+  onCompare: (searchIds: number[]) => void;
 }
 
 export const SearchesTab = ({
@@ -27,6 +28,7 @@ export const SearchesTab = ({
   searches,
   selectedSearchIds,
   onSelectSearch,
+  onCompare,
 }: SearchesTabProps) => {
   const queryClient = useQueryClient();
   const deleteSearchMutation = useMutation({
@@ -55,7 +57,11 @@ export const SearchesTab = ({
   return (
     <div className="space-y-4">
       {selectedSearchIds.length > 0 && (
-        <Button className="gap-2">
+        <Button
+          className="gap-2"
+          onClick={() => onCompare(selectedSearchIds)}
+          disabled={selectedSearchIds.length < 2}
+        >
           <BarChart3 className="h-4 w-4" />
           Compare {selectedSearchIds.length} Searches
         </Button>
