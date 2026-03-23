@@ -1,0 +1,266 @@
+Patent Explorer Roadmap
+Last updated: 2026-03-22
+
+Goal
+Evolve the app from basic search and project organization into a practical patent research workspace for prior-art, competitive intelligence, and ongoing monitoring.
+
+Current Baseline (already in app)
+- Patent search across providers (USPTO, EPO, WIPO, Google Patents).
+- Save searches to projects.
+- Pin patents to projects/collections.
+- Project tabs: Searches, Patents, Notes, Team.
+- Search comparison flow is wired.
+- Project settings modal supports metadata update/archive/delete.
+
+Guiding Priorities
+1. Research precision: better query control and filtering.
+2. Review throughput: reduce analyst time to identify relevant art.
+3. Defensible output: make results exportable and auditable.
+4. Monitoring: support recurring research workflows.
+
+--------------------------------------------------
+PHASE 1 (Quick Wins, 1-2 sprints)
+--------------------------------------------------
+1) Advanced Filters + Facets (highest ROI)
+Why
+- Researchers need to narrow noisy result sets fast.
+
+Scope
+- Add filters to search UI:
+  - Filing date range
+  - Grant date range
+  - Assignee (contains)
+  - Inventor (contains)
+  - Provider/jurisdiction multi-select
+- Add facet summary in results:
+  - Top assignees
+  - Filing year histogram
+  - Provider split
+
+Implementation notes
+- Extend search input model in SearchBar and Index state.
+- Pass filters to searchPatents/searchAllProviders.
+- Update patentApi mock filtering logic for deterministic behavior.
+- Add filter chips above table for active filters.
+
+Suggested files
+- src/components/SearchBar.tsx
+- src/pages/Index.tsx
+- src/lib/patentApi.ts
+- src/components/StatsBar.tsx
+- src/components/PatentTable.tsx
+
+Acceptance criteria
+- User can apply and clear each filter independently.
+- Result count and table update correctly for combined filters.
+- At least 4 tests for filter behavior (single + combined filters).
+
+2) Query Builder (Boolean + fielded)
+Why
+- Precision searching is mandatory for real prior-art work.
+
+Scope
+- Support syntax examples:
+  - "solid state battery" AND assignee:toyota
+  - (graphene OR silicon) AND title:electrode
+  - cpc:H01M NOT abstract:separator
+- Add query helper UI with examples and validation hints.
+
+Implementation notes
+- Add lightweight parser/validator (client-side) first.
+- Convert parsed terms to patentApi filtering logic.
+- Keep raw query string for auditability.
+
+Suggested files
+- src/components/SearchBar.tsx
+- src/lib/patentApi.ts
+- src/lib/patentApi.test.ts
+
+Acceptance criteria
+- Invalid syntax gives clear inline message.
+- Fielded terms and Boolean operators are honored in result filtering.
+- Query string and parsed form are both persisted with saved search.
+
+3) Review Workflow States
+Why
+- Teams need triage status, not just pinned/not pinned.
+
+Scope
+- Add patent review statuses per project:
+  - TO_REVIEW, RELEVANT, KEY_PRIOR_ART, EXCLUDED
+- Bulk actions in Patents tab.
+- Optional rationale note per status change.
+
+Implementation notes
+- Extend PatentReference type to include status and statusReason.
+- Add update APIs in projectRepository.
+- Add filter tabs in Patents tab by status.
+
+Suggested files
+- src/types/projects.ts
+- src/lib/projectRepository.ts
+- src/components/projects/tabs/PatentsTab.tsx
+- src/lib/projectRepository.test.ts
+
+Acceptance criteria
+- Status can be updated and persists after reload.
+- Bulk update works for multi-select.
+- Status counts visible in UI.
+
+--------------------------------------------------
+PHASE 2 (Core Research Depth, 2-4 sprints)
+--------------------------------------------------
+4) Patent Family + Dedup View
+Why
+- Prevent duplicate analysis across equivalents.
+
+Scope
+- Group patents by family key (mock family ID in current dataset).
+- Collapsible family rows in table.
+- Mark representative member per family.
+
+Suggested files
+- src/lib/patentApi.ts
+- src/components/PatentTable.tsx
+- src/types/projects.ts
+
+Acceptance criteria
+- Toggle between flat and family-grouped view.
+- Family members visible without losing per-patent detail.
+
+5) Legal Status and Risk Signals
+Why
+- Researchers care whether patents are active/enforceable.
+
+Scope
+- Add legal status field (PENDING, GRANTED, EXPIRED, LAPSED).
+- Add simple risk badge in patent cards/table.
+- Filter by legal status.
+
+Suggested files
+- src/lib/patentApi.ts
+- src/components/PatentTable.tsx
+- src/components/projects/tabs/PatentsTab.tsx
+
+Acceptance criteria
+- Status visible everywhere patents are listed.
+- Filters and exports include legal status.
+
+6) Claim-Centric Detail Panel
+Why
+- Novelty/FTO assessments hinge on independent claims.
+
+Scope
+- Add patent detail drawer/modal with:
+  - Independent claims
+  - Dependent claims summary
+  - Claim term highlight (search term match)
+
+Suggested files
+- src/components/PatentTable.tsx
+- src/components/projects/PatentDetailModal.tsx (new)
+- src/lib/patentApi.ts
+
+Acceptance criteria
+- Detail panel opens from table and project views.
+- Independent claims are clearly separated from dependent claims.
+
+--------------------------------------------------
+PHASE 3 (Collaboration + Monitoring + Reporting)
+--------------------------------------------------
+7) Alerts and Watchlists
+Why
+- Patent research is recurring, not one-and-done.
+
+Scope
+- Saved search frequency (daily/weekly).
+- In-app notification center (MVP).
+- "New since last run" badge for searches.
+
+Suggested files
+- src/lib/projectRepository.ts
+- src/components/projects/tabs/SearchesTab.tsx
+- src/pages/ProjectDetail.tsx
+
+Acceptance criteria
+- Scheduled metadata stored and visible.
+- Manual trigger simulates alert run in local mode.
+
+8) Evidence-Grade Export
+Why
+- Teams need shareable, traceable deliverables.
+
+Scope
+- Export search/project report as CSV and JSON (MVP), PDF later.
+- Include metadata:
+  - Query string, filters, provider, run date, reviewer notes.
+
+Suggested files
+- src/lib/projectRepository.ts
+- src/components/projects/tabs/SearchesTab.tsx
+- src/components/projects/tabs/PatentsTab.tsx
+- src/lib/exporters.ts (new)
+
+Acceptance criteria
+- Export includes all fields needed to reconstruct search context.
+- Export deterministic and test-covered.
+
+9) Activity Timeline
+Why
+- Improves accountability across teammates.
+
+Scope
+- Log key events: save search, pin patent, status change, comment, share updates.
+- Add timeline tab in project detail.
+
+Suggested files
+- src/types/projects.ts
+- src/lib/projectRepository.ts
+- src/components/projects/tabs/ActivityTab.tsx (new)
+- src/pages/ProjectDetail.tsx
+
+Acceptance criteria
+- Timeline is chronological and includes actor + action + timestamp.
+
+--------------------------------------------------
+Cross-Cutting Technical Work
+--------------------------------------------------
+Data model
+- Keep backward compatibility for localStorage schema changes.
+- Add migration helper when storage key version changes.
+
+Testing
+- Unit tests for repository mutations and filter logic.
+- Component tests for key interactions:
+  - Query builder validation
+  - Filter application
+  - Status changes
+  - Settings actions
+
+UX improvements
+- Empty states with next actions.
+- Better loading states for each tab.
+- Consistent error boundaries and retry actions.
+
+Performance
+- Memoize heavy transforms in chart/table components.
+- Add pagination controls if result volume grows.
+
+--------------------------------------------------
+Suggested Next Session Plan (practical)
+--------------------------------------------------
+Start with Phase 1, Item 1 (Advanced Filters + Facets).
+
+Session checklist
+1. Add filter state to Index page and SearchBar UI.
+2. Implement filtering in patentApi mock functions.
+3. Show active filter chips and clear-all action.
+4. Add/update tests in patentApi.test.ts and SearchBar tests.
+5. Validate with npm test and manual smoke check.
+
+Definition of done for next session
+- User can combine at least 3 filters.
+- Search results, counts, and charts respond correctly.
+- Tests cover filter combinations and reset behavior.
+
+End of roadmap.
