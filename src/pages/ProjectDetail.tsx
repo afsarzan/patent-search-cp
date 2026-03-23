@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,13 +11,16 @@ import { PatentsTab } from '@/components/projects/tabs/PatentsTab';
 import { NotesTab } from '@/components/projects/tabs/NotesTab';
 import { TeamTab } from '@/components/projects/tabs/TeamTab';
 import { SearchComparisonView } from '@/components/projects/SearchComparisonView';
+import { ProjectSettingsModal } from '@/components/projects/ProjectSettingsModal';
 import { getProjectDetail } from '@/lib/projectRepository';
 import { Header } from '@/components/Header';
 
 export const ProjectDetailPage = () => {
+  const navigate = useNavigate();
   const { projectId } = useParams<{ projectId: string }>();
   const [selectedSearchIds, setSelectedSearchIds] = useState<number[]>([]);
   const [comparisonSearchIds, setComparisonSearchIds] = useState<number[] | null>(null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   const projectIdNum = projectId ? parseInt(projectId, 10) : null;
 
@@ -105,7 +108,9 @@ export const ProjectDetailPage = () => {
             </div>
             <div className="flex gap-2">
               <Button variant="outline">Share</Button>
-              <Button variant="outline">Settings</Button>
+              <Button variant="outline" onClick={() => setShowSettingsModal(true)}>
+                Settings
+              </Button>
             </div>
           </div>
         </div>
@@ -173,6 +178,14 @@ export const ProjectDetailPage = () => {
           </Tabs>
         )}
       </div>
+
+      <ProjectSettingsModal
+        project={project}
+        isOpen={showSettingsModal}
+        onClose={() => setShowSettingsModal(false)}
+        onArchived={() => navigate('/projects')}
+        onDeleted={() => navigate('/projects')}
+      />
     </>
   );
 };

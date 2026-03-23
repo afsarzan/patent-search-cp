@@ -7,6 +7,7 @@ import {
   createProject,
   getProjectDetail,
   listProjects,
+  updateProject,
   pinPatentToProject,
   saveSearchToProject,
 } from './projectRepository';
@@ -118,5 +119,25 @@ describe('projectRepository', () => {
     expect(detail.collections).toHaveLength(1);
     expect(detail.pinnedPatents[0].patentData.url).toContain('US1234567');
     expect(detail.pinnedPatents[0].collectionIds).toContain(collection.id);
+  });
+
+  it('updates project settings metadata', async () => {
+    const project = await createProject({
+      name: 'Original Name',
+      description: 'Original description',
+      defaultProvider: 'USPTO',
+    });
+
+    await updateProject(project.id, {
+      name: 'Updated Name',
+      description: 'Updated description',
+      defaultProvider: 'EPO',
+    });
+
+    const detail = await getProjectDetail(project.id);
+
+    expect(detail.project.name).toBe('Updated Name');
+    expect(detail.project.description).toBe('Updated description');
+    expect(detail.project.defaultProvider).toBe('EPO');
   });
 });

@@ -35,6 +35,12 @@ interface CreateProjectInput {
   defaultProvider?: string;
 }
 
+interface UpdateProjectInput {
+  name: string;
+  description?: string;
+  defaultProvider?: string;
+}
+
 interface SaveSearchInput {
   queryString: string;
   providers: PatentProvider[];
@@ -206,6 +212,23 @@ export async function createProject(input: CreateProjectInput) {
       user: store.users.find((u) => u.id === CURRENT_USER_ID),
     };
     store.shares.push(ownerShare);
+
+    return project;
+  });
+}
+
+export async function updateProject(projectId: number, input: UpdateProjectInput) {
+  return withStore((store) => {
+    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
+    if (!project) throw new Error('Project not found');
+
+    const nextName = input.name.trim();
+    if (!nextName) throw new Error('Project name is required');
+
+    project.name = nextName;
+    project.description = input.description?.trim() || undefined;
+    project.defaultProvider = input.defaultProvider;
+    project.updatedAt = nowIso();
 
     return project;
   });
