@@ -52,7 +52,30 @@ export interface PatentSearchResult {
   total: number;
   error?: string;
   provider: PatentProvider;
+  facets: PatentSearchFacets;
 }
+
+export interface PatentSearchFilters {
+  filingDateFrom?: string;
+  filingDateTo?: string;
+  grantDateFrom?: string;
+  grantDateTo?: string;
+  assigneeContains?: string;
+  inventorContains?: string;
+  providers?: PatentProvider[];
+}
+
+export interface PatentSearchFacets {
+  topAssignees: Array<{ name: string; count: number }>;
+  filingYearHistogram: Array<{ year: number; count: number }>;
+  providerSplit: Array<{ provider: PatentProvider; count: number }>;
+}
+
+const EMPTY_FACETS: PatentSearchFacets = {
+  topAssignees: [],
+  filingYearHistogram: [],
+  providerSplit: [],
+};
 
 // Mock patent data for demonstration - USPTO
 const mockUSPTOPatents: Patent[] = [
@@ -370,47 +393,132 @@ const mockGooglePatents: Patent[] = [
   }
 ];
 
-// Search function using mock data
-export async function searchPatents(
-  query: string, 
-  provider: PatentProvider = 'USPTO',
-  page: number = 1, 
-  perPage: number = 25
-): Promise<PatentSearchResult> {
-  if (!query.trim()) {
-    return { patents: [], total: 0, provider };
-  }
-
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-
+function queryMatchesPatent(patent: Patent, query: string) {
   const lowerQuery = query.toLowerCase();
-  
-  // Select the appropriate data source based on provider
-  let dataSource: Patent[];
-  switch (provider) {
-    case 'EPO':
-      dataSource = mockEPOPatents;
-      break;
-    case 'WIPO':
-      dataSource = mockWIPOPatents;
-      break;
-    case 'Google Patents':
-      dataSource = mockGooglePatents;
-      break;
-    case 'USPTO':
-    default:
-      dataSource = mockUSPTOPatents;
-      break;
-  }
-  
-  // Filter patents based on query matching title, abstract, assignee, or inventor
-  const filteredPatents = dataSource.filter(patent => 
+  return (
     patent.title.toLowerCase().includes(lowerQuery) ||
     patent.abstract.toLowerCase().includes(lowerQuery) ||
     patent.assignee.toLowerCase().includes(lowerQuery) ||
-    patent.inventors.some(inv => inv.toLowerCase().includes(lowerQuery))
+    patent.inventors.some((inv) => inv.toLowerCase().includes(lowerQuery))
   );
+}
+
+function filterByAdvancedFilters(patent: Patent, filters?: PatentSearchFilters) {
+  if (!filters) return true;
+
+  if (filters.filingDateFrom && patent.filingDate < filters.filingDateFrom) {
+    return false;
+  }
+
+  if (filters.filingDateTo && patent.filingDate > filters.filingDateTo) {
+    return false;
+  }
+
+  if (filters.grantDateFrom && patent.grantDate < filters.grantDateFrom) {
+    return false;
+  }
+
+  if (filters.grantDateTo && patent.grantDate > filters.grantDateTo) {
+    return false;
+  }
+
+  if (filters.assigneeContains) {
+    const assigneeQuery = filters.assigneeContains.toLowerCase();
+    if (!patent.assignee.toLowerCase().includes(assigneeQuery)) {
+      return false;
+    }
+  }
+
+  if (filters.inventorContains) {
+    const inventorQuery = filters.inventorContains.toLowerCase();
+    const hasInventorMatch = patent.inventors.some((inv) => inv.toLowerCase().includes(inventorQuery));
+    if (!hasInventorMatch) {
+      return false;
+    }
+  }
+
+  if (filters.providers && filters.providers.length > 0 && !filters.providers.includes(patent.provider)) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildFacets(patents: Patent[]): PatentSearchFacets {
+  if (patents.length === 0) {
+    return EMPTY_FACETS;
+  }
+
+  const assigneeCounts = new Map<string, number>();
+  const filingYearCounts = new Map<number, number>();
+  const providerCounts = new Map<PatentProvider, number>();
+
+  for (const patent of patents) {
+    assigneeCounts.set(patent.assignee, (assigneeCounts.get(patent.assignee) ?? 0) + 1);
+
+    const filingYear = Number.parseInt(patent.filingDate.slice(0, 4), 10);
+    if (Number.isFinite(filingYear)) {
+      filingYearCounts.set(filingYear, (filingYearCounts.get(filingYear) ?? 0) + 1);
+    }
+
+    providerCounts.set(patent.provider, (providerCounts.get(patent.provider) ?? 0) + 1);
+  }
+
+  const topAssignees = Array.from(assigneeCounts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 5)
+    .map(([name, count]) => ({ name, count }));
+
+  const filingYearHistogram = Array.from(filingYearCounts.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([year, count]) => ({ year, count }));
+
+  const providerSplit = Array.from(providerCounts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([provider, count]) => ({ provider, count }));
+
+  return {
+    topAssignees,
+    filingYearHistogram,
+    providerSplit,
+  };
+}
+
+function getDataSourceForProvider(provider: PatentProvider): Patent[] {
+  switch (provider) {
+    case 'EPO':
+      return mockEPOPatents;
+    case 'WIPO':
+      return mockWIPOPatents;
+    case 'Google Patents':
+      return mockGooglePatents;
+    case 'USPTO':
+    default:
+      return mockUSPTOPatents;
+  }
+}
+
+// Search function using mock data
+export async function searchPatents(
+  query: string,
+  provider: PatentProvider = 'USPTO',
+  page: number = 1,
+  perPage: number = 25,
+  filters?: PatentSearchFilters
+): Promise<PatentSearchResult> {
+  if (!query.trim()) {
+    return { patents: [], total: 0, provider, facets: EMPTY_FACETS };
+  }
+
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  const dataSource = getDataSourceForProvider(provider);
+
+  const filteredPatents = dataSource.filter(
+    (patent) => queryMatchesPatent(patent, query) && filterByAdvancedFilters(patent, filters)
+  );
+  const facets = buildFacets(filteredPatents);
 
   const safePerPage = Math.max(1, perPage);
   const safePage = Math.max(1, page);
@@ -421,38 +529,39 @@ export async function searchPatents(
   return {
     patents: paginatedResults,
     total: filteredPatents.length,
-    provider
+    provider,
+    facets,
   };
 }
 
 // Get all patents from all providers
-export async function searchAllProviders(query: string): Promise<PatentSearchResult> {
+export async function searchAllProviders(
+  query: string,
+  filters?: PatentSearchFilters
+): Promise<PatentSearchResult> {
   if (!query.trim()) {
-    return { patents: [], total: 0, provider: 'Google Patents' };
+    return { patents: [], total: 0, provider: 'Google Patents', facets: EMPTY_FACETS };
   }
 
   // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 800));
+  await new Promise((resolve) => setTimeout(resolve, 800));
 
-  const lowerQuery = query.toLowerCase();
   const allPatents = [
     ...mockUSPTOPatents,
     ...mockEPOPatents,
     ...mockWIPOPatents,
     ...mockGooglePatents
   ];
-  
-  // Filter patents based on query
-  const filteredPatents = allPatents.filter(patent => 
-    patent.title.toLowerCase().includes(lowerQuery) ||
-    patent.abstract.toLowerCase().includes(lowerQuery) ||
-    patent.assignee.toLowerCase().includes(lowerQuery) ||
-    patent.inventors.some(inv => inv.toLowerCase().includes(lowerQuery))
+
+  const filteredPatents = allPatents.filter(
+    (patent) => queryMatchesPatent(patent, query) && filterByAdvancedFilters(patent, filters)
   );
+  const facets = buildFacets(filteredPatents);
 
   return {
     patents: filteredPatents,
     total: filteredPatents.length,
-    provider: 'Google Patents' // Google Patents as aggregator
+    provider: 'Google Patents', // Google Patents as aggregator
+    facets,
   };
 }

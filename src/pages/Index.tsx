@@ -7,11 +7,23 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { StatsBar } from '@/components/StatsBar';
 import { TopSearchesChart } from '@/components/TopSearchesChart';
 import { GuidedWorkflowSection } from '@/components/GuidedWorkflowSection';
-import { ProviderSelector } from '@/components/ProviderSelector';
 import { SaveSearchModal } from '@/components/projects/SaveSearchModal';
-import { searchPatents, Patent, PatentProvider } from '@/lib/patentApi';
+import {
+  searchAllProviders,
+  searchPatents,
+  Patent,
+  PatentSearchFacets,
+  PatentSearchFilters,
+} from '@/lib/patentApi';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+
+const EMPTY_FACETS: PatentSearchFacets = {
+  topAssignees: [],
+  filingYearHistogram: [],
+  providerSplit: [],
+};
 
 const Index = () => {
   const [patents, setPatents] = useState<Patent[]>([]);
@@ -21,17 +33,22 @@ const Index = () => {
   const [error, setError] = useState<string | undefined>();
   const [searchTime, setSearchTime] = useState<number | undefined>();
   const [currentQuery, setCurrentQuery] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState<PatentProvider>('USPTO');
+  const [activeFilters, setActiveFilters] = useState<PatentSearchFilters>({});
+  const [facets, setFacets] = useState<PatentSearchFacets>(EMPTY_FACETS);
   const [showSaveModal, setShowSaveModal] = useState(false);
 
-  const handleSearch = useCallback(async (query: string) => {
+  const handleSearch = useCallback(async (query: string, filters: PatentSearchFilters) => {
     setIsLoading(true);
     setError(undefined);
     setCurrentQuery(query);
+    setActiveFilters(filters);
     const startTime = performance.now();
 
     try {
-      const result = await searchPatents(query, selectedProvider);
+      const result =
+        filters.providers && filters.providers.length === 1
+          ? await searchPatents(query, filters.providers[0], 1, 25, filters)
+          : await searchAllProviders(query, filters);
       const endTime = performance.now();
       setSearchTime((endTime - startTime) / 1000);
 
@@ -39,19 +56,42 @@ const Index = () => {
         setError(result.error);
         setPatents([]);
         setTotal(0);
+        setFacets(EMPTY_FACETS);
       } else {
         setPatents(result.patents);
         setTotal(result.total);
+        setFacets(result.facets);
       }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.');
       setPatents([]);
       setTotal(0);
+      setFacets(EMPTY_FACETS);
     } finally {
       setIsLoading(false);
       setHasSearched(true);
     }
-  }, [selectedProvider]);
+  }, []);
+
+  const handleClearFilter = async (filterKey: keyof PatentSearchFilters) => {
+    const nextFilters: PatentSearchFilters = {
+      ...activeFilters,
+      [filterKey]: undefined,
+    };
+    setActiveFilters(nextFilters);
+
+    if (currentQuery) {
+      await handleSearch(currentQuery, nextFilters);
+    }
+  };
+
+  const handleClearAllFilters = async () => {
+    setActiveFilters({});
+
+    if (currentQuery && hasSearched) {
+      await handleSearch(currentQuery, {});
+    }
+  };
 
   const handleBackToSearch = () => {
     setHasSearched(false);
@@ -60,6 +100,46 @@ const Index = () => {
     setError(undefined);
     setCurrentQuery('');
     setSearchTime(undefined);
+    setActiveFilters({});
+    setFacets(EMPTY_FACETS);
+  };
+
+  const activeFilterChips = [
+    activeFilters.filingDateFrom
+      ? { key: 'filingDateFrom' as const, label: `Filing from: ${activeFilters.filingDateFrom}` }
+      : null,
+    activeFilters.filingDateTo
+      ? { key: 'filingDateTo' as const, label: `Filing to: ${activeFilters.filingDateTo}` }
+      : null,
+    activeFilters.grantDateFrom
+      ? { key: 'grantDateFrom' as const, label: `Grant from: ${activeFilters.grantDateFrom}` }
+      : null,
+    activeFilters.grantDateTo
+      ? { key: 'grantDateTo' as const, label: `Grant to: ${activeFilters.grantDateTo}` }
+      : null,
+    activeFilters.assigneeContains
+      ? { key: 'assigneeContains' as const, label: `Assignee: ${activeFilters.assigneeContains}` }
+      : null,
+    activeFilters.inventorContains
+      ? { key: 'inventorContains' as const, label: `Inventor: ${activeFilters.inventorContains}` }
+      : null,
+    activeFilters.providers && activeFilters.providers.length > 0
+      ? { key: 'providers' as const, label: `Providers: ${activeFilters.providers.join(', ')}` }
+      : null,
+  ].filter((value): value is { key: keyof PatentSearchFilters; label: string } => value !== null);
+
+  const providerLabel =
+    activeFilters.providers && activeFilters.providers.length > 0
+      ? activeFilters.providers.join(', ')
+      : 'All providers';
+
+  const providersForSave =
+    activeFilters.providers && activeFilters.providers.length > 0
+      ? activeFilters.providers
+      : facets.providerSplit.map((entry) => entry.provider);
+
+  const handleGuidedSearch = (query: string) => {
+    void handleSearch(query, activeFilters);
   };
 
   return (
@@ -79,13 +159,13 @@ const Index = () => {
             Search millions of patents from multiple databases worldwide. Find innovations, prior art, and intellectual property insights instantly.
           </p>
           
-          {/* Provider Selector */}
-          <ProviderSelector 
-            selectedProvider={selectedProvider} 
-            onProviderChange={setSelectedProvider}
+          <SearchBar
+            onSearch={handleSearch}
+            isLoading={isLoading}
+            filters={activeFilters}
+            onFiltersChange={setActiveFilters}
+            onClearFilters={handleClearAllFilters}
           />
-          
-          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
           
           {/* Back to Search Button - shown after search */}
           {hasSearched && !isLoading && (
@@ -106,15 +186,21 @@ const Index = () => {
         {!hasSearched && !isLoading && (
           <div className="mb-12 space-y-16">
             <TopSearchesChart />
-            <GuidedWorkflowSection onSearch={handleSearch} />
+            <GuidedWorkflowSection onSearch={handleGuidedSearch} />
           </div>
         )}
 
         {/* Stats Bar */}
         {hasSearched && !isLoading && !error && patents.length > 0 && (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <StatsBar total={total} searchTime={searchTime} query={currentQuery} provider={selectedProvider} />
+            <div className="mb-4">
+              <StatsBar
+                total={total}
+                searchTime={searchTime}
+                query={currentQuery}
+                providerLabel={providerLabel}
+                facets={facets}
+              />
               <Button
                 onClick={() => setShowSaveModal(true)}
                 className="gap-2"
@@ -128,6 +214,27 @@ const Index = () => {
 
         {/* Results Section */}
         <div className="mt-8">
+          {hasSearched && !isLoading && !error && patents.length > 0 && activeFilterChips.length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {activeFilterChips.map((chip) => (
+                <Badge key={chip.key} variant="secondary" className="flex items-center gap-2 py-1.5 px-3">
+                  {chip.label}
+                  <button
+                    type="button"
+                    onClick={() => handleClearFilter(chip.key)}
+                    className="rounded-full hover:bg-muted/70"
+                    aria-label={`Clear filter ${chip.label}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+              <Button type="button" variant="ghost" size="sm" onClick={handleClearAllFilters}>
+                Clear all
+              </Button>
+            </div>
+          )}
+
           {isLoading ? (
             <LoadingSkeleton />
           ) : patents.length > 0 ? (
@@ -180,12 +287,13 @@ const Index = () => {
         onClose={() => setShowSaveModal(false)}
         currentSearch={{
           queryString: currentQuery,
-          providers: [selectedProvider],
-          filters: {},
+          providers: providersForSave,
+          filters: activeFilters,
           results: patents,
           stats: {
             total,
             resultCount: patents.length,
+            facets,
           },
         }}
       />
