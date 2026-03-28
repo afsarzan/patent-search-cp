@@ -25,6 +25,7 @@ export interface SavedSearch {
   id: number;
   projectId: number;
   queryString: string;
+  parsedQuery?: Record<string, unknown>;
   providers: string[];
   filters: Record<string, unknown>;
   resultCount: number;

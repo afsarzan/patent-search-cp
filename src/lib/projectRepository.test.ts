@@ -37,6 +37,14 @@ describe('projectRepository', () => {
 
     await saveSearchToProject(project.id, {
       queryString: 'solid state battery',
+      parsedQuery: {
+        raw: 'solid state battery',
+        normalized: 'solid state battery',
+        ast: {
+          type: 'term',
+          value: 'solid state battery',
+        },
+      },
       providers: ['USPTO'],
       cachedResults: [
         {
@@ -71,6 +79,14 @@ describe('projectRepository', () => {
 
     expect(detail.searches).toHaveLength(1);
     expect(detail.searches[0].queryString).toBe('solid state battery');
+    expect(detail.searches[0].parsedQuery).toEqual({
+      raw: 'solid state battery',
+      normalized: 'solid state battery',
+      ast: {
+        type: 'term',
+        value: 'solid state battery',
+      },
+    });
     expect(detail.searches[0].earliestFilingYear).toBe(2020);
     expect(detail.searches[0].latestFilingYear).toBe(2022);
   });

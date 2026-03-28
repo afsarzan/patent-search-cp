@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { searchAllProviders, searchPatents } from './patentApi';
+import { parsePatentQuery, searchAllProviders, searchPatents } from './patentApi';
+
+describe('parsePatentQuery', () => {
+  it('parses quoted phrases, boolean operators, and fielded terms', () => {
+    const parsed = parsePatentQuery('"solid state battery" AND assignee:toyota');
+
+    expect(parsed.valid).toBe(true);
+    if (parsed.valid) {
+      expect(parsed.parsed.ast.type).toBe('binary');
+    }
+  });
+
+  it('returns an inline-safe validation error for malformed syntax', () => {
+    const parsed = parsePatentQuery('(graphene OR silicon');
+
+    expect(parsed.valid).toBe(false);
+    if (!parsed.valid) {
+      expect(parsed.error).toContain('closing parenthesis');
+    }
+  });
+});
 
 describe('searchPatents', () => {
   it('returns no results when query has no matches', async () => {
@@ -45,6 +65,29 @@ describe('searchPatents', () => {
 
     expect(result.total).toBe(1);
     expect(result.patents[0]?.assignee).toContain('Tesla');
+  });
+
+  it('honors fielded terms and AND operator', async () => {
+    const result = await searchPatents('title:transformer AND assignee:google', 'USPTO');
+
+    expect(result.total).toBe(1);
+    expect(result.patents[0]?.assignee).toContain('Google');
+    expect(result.patents[0]?.title.toLowerCase()).toContain('transformer');
+  });
+
+  it('honors OR and NOT operators with implicit AND', async () => {
+    const orResult = await searchPatents('assignee:tesla OR assignee:google', 'USPTO');
+    const notResult = await searchPatents('assignee:tesla NOT abstract:urban', 'USPTO');
+
+    expect(orResult.total).toBe(2);
+    expect(notResult.total).toBe(0);
+  });
+
+  it('returns parse errors for invalid boolean syntax', async () => {
+    const result = await searchPatents('(assignee:tesla OR assignee:google', 'USPTO');
+
+    expect(result.total).toBe(0);
+    expect(result.error).toContain('closing parenthesis');
   });
 });
 

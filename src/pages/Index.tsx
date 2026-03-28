@@ -10,6 +10,7 @@ import { GuidedWorkflowSection } from '@/components/GuidedWorkflowSection';
 import { SaveSearchModal } from '@/components/projects/SaveSearchModal';
 import {
   searchAllProviders,
+  ParsedPatentQuery,
   searchPatents,
   Patent,
   PatentSearchFacets,
@@ -33,14 +34,16 @@ const Index = () => {
   const [error, setError] = useState<string | undefined>();
   const [searchTime, setSearchTime] = useState<number | undefined>();
   const [currentQuery, setCurrentQuery] = useState('');
+  const [currentParsedQuery, setCurrentParsedQuery] = useState<ParsedPatentQuery | undefined>();
   const [activeFilters, setActiveFilters] = useState<PatentSearchFilters>({});
   const [facets, setFacets] = useState<PatentSearchFacets>(EMPTY_FACETS);
   const [showSaveModal, setShowSaveModal] = useState(false);
 
-  const handleSearch = useCallback(async (query: string, filters: PatentSearchFilters) => {
+  const handleSearch = useCallback(async (query: string, filters: PatentSearchFilters, parsedQuery?: ParsedPatentQuery) => {
     setIsLoading(true);
     setError(undefined);
     setCurrentQuery(query);
+    setCurrentParsedQuery(parsedQuery);
     setActiveFilters(filters);
     const startTime = performance.now();
 
@@ -81,7 +84,7 @@ const Index = () => {
     setActiveFilters(nextFilters);
 
     if (currentQuery) {
-      await handleSearch(currentQuery, nextFilters);
+      await handleSearch(currentQuery, nextFilters, currentParsedQuery);
     }
   };
 
@@ -89,7 +92,7 @@ const Index = () => {
     setActiveFilters({});
 
     if (currentQuery && hasSearched) {
-      await handleSearch(currentQuery, {});
+      await handleSearch(currentQuery, {}, currentParsedQuery);
     }
   };
 
@@ -99,6 +102,7 @@ const Index = () => {
     setTotal(0);
     setError(undefined);
     setCurrentQuery('');
+    setCurrentParsedQuery(undefined);
     setSearchTime(undefined);
     setActiveFilters({});
     setFacets(EMPTY_FACETS);
@@ -287,6 +291,7 @@ const Index = () => {
         onClose={() => setShowSaveModal(false)}
         currentSearch={{
           queryString: currentQuery,
+          parsedQuery: currentParsedQuery,
           providers: providersForSave,
           filters: activeFilters,
           results: patents,

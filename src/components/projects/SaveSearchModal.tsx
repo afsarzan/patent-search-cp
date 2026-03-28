@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
-import { Patent, PatentProvider } from '@/lib/patentApi';
+import { ParsedPatentQuery, Patent, PatentProvider } from '@/lib/patentApi';
 import { Project } from '@/types/projects';
 import { createProject, listProjects, saveSearchToProject } from '@/lib/projectRepository';
 
@@ -17,6 +17,7 @@ interface SaveSearchModalProps {
   onClose: () => void;
   currentSearch: {
     queryString: string;
+    parsedQuery?: ParsedPatentQuery;
     providers: PatentProvider[];
     filters?: Record<string, unknown>;
     results: Patent[];
@@ -61,6 +62,7 @@ export const SaveSearchModal = ({
       // Save search to project
       return saveSearchToProject(projectId, {
         queryString: currentSearch.queryString,
+        parsedQuery: currentSearch.parsedQuery,
         providers: currentSearch.providers,
         filters: currentSearch.filters || {},
         cachedResults: currentSearch.results,

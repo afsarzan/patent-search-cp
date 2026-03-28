@@ -45,7 +45,43 @@ export interface Patent {
   grantDate: string;
   url: string;
   provider: PatentProvider;
+  cpcCodes?: string[];
 }
+
+export type PatentQueryField = 'title' | 'abstract' | 'assignee' | 'inventor' | 'cpc' | 'patent';
+
+export type PatentQueryNode =
+  | {
+      type: 'term';
+      value: string;
+      field?: PatentQueryField;
+    }
+  | {
+      type: 'not';
+      node: PatentQueryNode;
+    }
+  | {
+      type: 'binary';
+      operator: 'AND' | 'OR';
+      left: PatentQueryNode;
+      right: PatentQueryNode;
+    };
+
+export interface ParsedPatentQuery {
+  raw: string;
+  normalized: string;
+  ast: PatentQueryNode;
+}
+
+export type PatentQueryParseResult =
+  | {
+      valid: true;
+      parsed: ParsedPatentQuery;
+    }
+  | {
+      valid: false;
+      error: string;
+    };
 
 export interface PatentSearchResult {
   patents: Patent[];
@@ -393,14 +429,332 @@ const mockGooglePatents: Patent[] = [
   }
 ];
 
-function queryMatchesPatent(patent: Patent, query: string) {
-  const lowerQuery = query.toLowerCase();
+type QueryToken =
+  | { type: 'term'; value: string }
+  | { type: 'and' }
+  | { type: 'or' }
+  | { type: 'not' }
+  | { type: 'lparen' }
+  | { type: 'rparen' };
+
+const ALLOWED_QUERY_FIELDS = new Set<PatentQueryField>([
+  'title',
+  'abstract',
+  'assignee',
+  'inventor',
+  'cpc',
+  'patent',
+]);
+
+function tokenizePatentQuery(query: string): PatentQueryParseResult | { valid: true; tokens: QueryToken[] } {
+  const tokens: QueryToken[] = [];
+  let index = 0;
+
+  while (index < query.length) {
+    const char = query[index];
+
+    if (/\s/.test(char)) {
+      index += 1;
+      continue;
+    }
+
+    if (char === '(') {
+      tokens.push({ type: 'lparen' });
+      index += 1;
+      continue;
+    }
+
+    if (char === ')') {
+      tokens.push({ type: 'rparen' });
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      const endQuote = query.indexOf('"', index + 1);
+      if (endQuote === -1) {
+        return { valid: false, error: 'Unclosed quoted phrase. Add a closing ".' };
+      }
+
+      const phrase = query.slice(index + 1, endQuote).trim();
+      if (!phrase) {
+        return { valid: false, error: 'Quoted phrases cannot be empty.' };
+      }
+
+      tokens.push({ type: 'term', value: phrase });
+      index = endQuote + 1;
+      continue;
+    }
+
+    let endIndex = index;
+    while (endIndex < query.length && !/\s/.test(query[endIndex]) && query[endIndex] !== '(' && query[endIndex] !== ')') {
+      endIndex += 1;
+    }
+
+    const rawToken = query.slice(index, endIndex);
+    const normalized = rawToken.toUpperCase();
+
+    if (normalized === 'AND') {
+      tokens.push({ type: 'and' });
+    } else if (normalized === 'OR') {
+      tokens.push({ type: 'or' });
+    } else if (normalized === 'NOT') {
+      tokens.push({ type: 'not' });
+    } else {
+      tokens.push({ type: 'term', value: rawToken });
+    }
+
+    index = endIndex;
+  }
+
+  return { valid: true, tokens };
+}
+
+function parseTermToken(value: string): PatentQueryParseResult | { valid: true; node: PatentQueryNode } {
+  const colonIndex = value.indexOf(':');
+  if (colonIndex === -1) {
+    return { valid: true, node: { type: 'term', value } };
+  }
+
+  const fieldRaw = value.slice(0, colonIndex).trim().toLowerCase();
+  const termValue = value.slice(colonIndex + 1).trim();
+
+  if (!fieldRaw) {
+    return { valid: false, error: 'Fielded terms must look like field:value.' };
+  }
+
+  if (!ALLOWED_QUERY_FIELDS.has(fieldRaw as PatentQueryField)) {
+    return {
+      valid: false,
+      error: `Unknown field "${fieldRaw}". Use title, abstract, assignee, inventor, cpc, or patent.`,
+    };
+  }
+
+  if (!termValue) {
+    return { valid: false, error: `Missing value for field "${fieldRaw}".` };
+  }
+
+  return {
+    valid: true,
+    node: {
+      type: 'term',
+      field: fieldRaw as PatentQueryField,
+      value: termValue,
+    },
+  };
+}
+
+export function parsePatentQuery(query: string): PatentQueryParseResult {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return { valid: false, error: 'Enter a search query.' };
+  }
+
+  const tokenized = tokenizePatentQuery(trimmed);
+  if (!tokenized.valid) {
+    return tokenized;
+  }
+
+  const tokens = tokenized.tokens;
+  let cursor = 0;
+
+  const current = () => tokens[cursor];
+  const consume = () => {
+    const token = tokens[cursor];
+    cursor += 1;
+    return token;
+  };
+
+  const parsePrimary = (): PatentQueryParseResult | { valid: true; node: PatentQueryNode } => {
+    const token = current();
+    if (!token) {
+      return { valid: false, error: 'Query ended unexpectedly.' };
+    }
+
+    if (token.type === 'lparen') {
+      consume();
+      const expression = parseOrExpression();
+      if (!expression.valid) {
+        return expression;
+      }
+
+      const closing = current();
+      if (!closing || closing.type !== 'rparen') {
+        return { valid: false, error: 'Missing closing parenthesis.' };
+      }
+      consume();
+      return expression;
+    }
+
+    if (token.type === 'term') {
+      consume();
+      return parseTermToken(token.value);
+    }
+
+    if (token.type === 'rparen') {
+      return { valid: false, error: 'Unexpected closing parenthesis.' };
+    }
+
+    return { valid: false, error: 'Expected a term or (group).' };
+  };
+
+  const parseNotExpression = (): PatentQueryParseResult | { valid: true; node: PatentQueryNode } => {
+    const token = current();
+    if (token && token.type === 'not') {
+      consume();
+      const operand = parseNotExpression();
+      if (!operand.valid) {
+        return operand;
+      }
+      return { valid: true, node: { type: 'not', node: operand.node } };
+    }
+
+    return parsePrimary();
+  };
+
+  const shouldImplicitlyAnd = (token: QueryToken | undefined) =>
+    token?.type === 'term' || token?.type === 'lparen' || token?.type === 'not';
+
+  const parseAndExpression = (): PatentQueryParseResult | { valid: true; node: PatentQueryNode } => {
+    const first = parseNotExpression();
+    if (!first.valid) {
+      return first;
+    }
+
+    let node = first.node;
+
+    while (true) {
+      const token = current();
+      if (!token || token.type === 'or' || token.type === 'rparen') {
+        break;
+      }
+
+      if (token.type === 'and') {
+        consume();
+      } else if (!shouldImplicitlyAnd(token)) {
+        return { valid: false, error: 'Expected AND, OR, or a closing parenthesis.' };
+      }
+
+      const right = parseNotExpression();
+      if (!right.valid) {
+        return right;
+      }
+
+      node = {
+        type: 'binary',
+        operator: 'AND',
+        left: node,
+        right: right.node,
+      };
+    }
+
+    return { valid: true, node };
+  };
+
+  const parseOrExpression = (): PatentQueryParseResult | { valid: true; node: PatentQueryNode } => {
+    const first = parseAndExpression();
+    if (!first.valid) {
+      return first;
+    }
+
+    let node = first.node;
+    while (current() && current()?.type === 'or') {
+      consume();
+
+      const right = parseAndExpression();
+      if (!right.valid) {
+        return right;
+      }
+
+      node = {
+        type: 'binary',
+        operator: 'OR',
+        left: node,
+        right: right.node,
+      };
+    }
+
+    return { valid: true, node };
+  };
+
+  const parsed = parseOrExpression();
+  if (!parsed.valid) {
+    return parsed;
+  }
+
+  if (cursor < tokens.length) {
+    const token = tokens[cursor];
+    if (token.type === 'rparen') {
+      return { valid: false, error: 'Unexpected closing parenthesis.' };
+    }
+    return { valid: false, error: 'Unexpected token near the end of the query.' };
+  }
+
+  return {
+    valid: true,
+    parsed: {
+      raw: query,
+      normalized: trimmed.replace(/\s+/g, ' '),
+      ast: parsed.node,
+    },
+  };
+}
+
+function matchesTextValue(candidate: string, value: string) {
+  return candidate.toLowerCase().includes(value.toLowerCase());
+}
+
+function queryTermMatchesPatent(patent: Patent, term: { value: string; field?: PatentQueryField }) {
+  const value = term.value;
+
+  if (term.field === 'title') {
+    return matchesTextValue(patent.title, value);
+  }
+
+  if (term.field === 'abstract') {
+    return matchesTextValue(patent.abstract, value);
+  }
+
+  if (term.field === 'assignee') {
+    return matchesTextValue(patent.assignee, value);
+  }
+
+  if (term.field === 'inventor') {
+    return patent.inventors.some((inventor) => matchesTextValue(inventor, value));
+  }
+
+  if (term.field === 'patent') {
+    return matchesTextValue(patent.patentNumber, value);
+  }
+
+  if (term.field === 'cpc') {
+    return (patent.cpcCodes || []).some((code) => matchesTextValue(code, value));
+  }
+
   return (
-    patent.title.toLowerCase().includes(lowerQuery) ||
-    patent.abstract.toLowerCase().includes(lowerQuery) ||
-    patent.assignee.toLowerCase().includes(lowerQuery) ||
-    patent.inventors.some((inv) => inv.toLowerCase().includes(lowerQuery))
+    matchesTextValue(patent.title, value) ||
+    matchesTextValue(patent.abstract, value) ||
+    matchesTextValue(patent.assignee, value) ||
+    matchesTextValue(patent.patentNumber, value) ||
+    patent.inventors.some((inventor) => matchesTextValue(inventor, value)) ||
+    (patent.cpcCodes || []).some((code) => matchesTextValue(code, value))
   );
+}
+
+function queryMatchesPatent(patent: Patent, node: PatentQueryNode): boolean {
+  if (node.type === 'term') {
+    return queryTermMatchesPatent(patent, node);
+  }
+
+  if (node.type === 'not') {
+    return !queryMatchesPatent(patent, node.node);
+  }
+
+  if (node.operator === 'AND') {
+    return queryMatchesPatent(patent, node.left) && queryMatchesPatent(patent, node.right);
+  }
+
+  return queryMatchesPatent(patent, node.left) || queryMatchesPatent(patent, node.right);
 }
 
 function filterByAdvancedFilters(patent: Patent, filters?: PatentSearchFilters) {
@@ -513,10 +867,15 @@ export async function searchPatents(
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 500));
 
+  const parsedQuery = parsePatentQuery(query);
+  if (!parsedQuery.valid) {
+    return { patents: [], total: 0, provider, facets: EMPTY_FACETS, error: parsedQuery.error };
+  }
+
   const dataSource = getDataSourceForProvider(provider);
 
   const filteredPatents = dataSource.filter(
-    (patent) => queryMatchesPatent(patent, query) && filterByAdvancedFilters(patent, filters)
+    (patent) => queryMatchesPatent(patent, parsedQuery.parsed.ast) && filterByAdvancedFilters(patent, filters)
   );
   const facets = buildFacets(filteredPatents);
 
@@ -546,6 +905,17 @@ export async function searchAllProviders(
   // Simulate network delay
   await new Promise((resolve) => setTimeout(resolve, 800));
 
+  const parsedQuery = parsePatentQuery(query);
+  if (!parsedQuery.valid) {
+    return {
+      patents: [],
+      total: 0,
+      provider: 'Google Patents',
+      facets: EMPTY_FACETS,
+      error: parsedQuery.error,
+    };
+  }
+
   const allPatents = [
     ...mockUSPTOPatents,
     ...mockEPOPatents,
@@ -554,7 +924,7 @@ export async function searchAllProviders(
   ];
 
   const filteredPatents = allPatents.filter(
-    (patent) => queryMatchesPatent(patent, query) && filterByAdvancedFilters(patent, filters)
+    (patent) => queryMatchesPatent(patent, parsedQuery.parsed.ast) && filterByAdvancedFilters(patent, filters)
   );
   const facets = buildFacets(filteredPatents);
 

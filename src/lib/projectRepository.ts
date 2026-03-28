@@ -43,6 +43,7 @@ interface UpdateProjectInput {
 
 interface SaveSearchInput {
   queryString: string;
+  parsedQuery?: Record<string, unknown>;
   providers: PatentProvider[];
   filters?: Record<string, unknown>;
   cachedResults: Patent[];
@@ -311,6 +312,7 @@ export async function saveSearchToProject(projectId: number, input: SaveSearchIn
       id: nextId(store, 'search'),
       projectId,
       queryString: input.queryString,
+      parsedQuery: input.parsedQuery,
       providers: input.providers,
       filters: input.filters || {},
       resultCount: input.cachedResults.length,

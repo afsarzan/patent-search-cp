@@ -4,10 +4,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PatentProvider, PatentSearchFilters, PROVIDERS } from '@/lib/patentApi';
+import {
+  ParsedPatentQuery,
+  PatentProvider,
+  PatentSearchFilters,
+  PROVIDERS,
+  parsePatentQuery,
+} from '@/lib/patentApi';
 
 interface SearchBarProps {
-  onSearch: (query: string, filters: PatentSearchFilters) => void;
+  onSearch: (query: string, filters: PatentSearchFilters, parsedQuery: ParsedPatentQuery) => void;
   isLoading: boolean;
   filters: PatentSearchFilters;
   onFiltersChange: (filters: PatentSearchFilters) => void;
@@ -31,8 +37,10 @@ function normalizeFilters(filters: PatentSearchFilters): PatentSearchFilters {
 
 export function SearchBar({ onSearch, isLoading, filters, onFiltersChange, onClearFilters }: SearchBarProps) {
   const [query, setQuery] = useState('');
+  const [queryError, setQueryError] = useState<string | null>(null);
   const inputId = 'patent-query-input';
   const hintId = 'patent-query-hint';
+  const errorId = 'patent-query-error';
 
   const updateFilter = <K extends keyof PatentSearchFilters>(key: K, value: PatentSearchFilters[K]) => {
     onFiltersChange({
@@ -62,9 +70,18 @@ export function SearchBar({ onSearch, isLoading, filters, onFiltersChange, onCle
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim()) {
-      onSearch(query.trim(), normalizeFilters(filters));
+    if (!query.trim()) {
+      return;
     }
+
+    const parseResult = parsePatentQuery(query.trim());
+    if (!parseResult.valid) {
+      setQueryError(parseResult.error);
+      return;
+    }
+
+    setQueryError(null);
+    onSearch(query.trim(), normalizeFilters(filters), parseResult.parsed);
   };
 
   return (
@@ -79,9 +96,15 @@ export function SearchBar({ onSearch, isLoading, filters, onFiltersChange, onCle
             id={inputId}
             type="text"
             placeholder="Enter a topic, keyword, or technology..."
-            aria-describedby={hintId}
+            aria-describedby={queryError ? `${hintId} ${errorId}` : hintId}
+            aria-invalid={queryError ? true : undefined}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              if (queryError) {
+                setQueryError(null);
+              }
+            }}
             className="pl-12 h-14 text-lg bg-card border-border shadow-card rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
           />
         </div>
@@ -103,6 +126,28 @@ export function SearchBar({ onSearch, isLoading, filters, onFiltersChange, onCle
       <p id={hintId} className="sr-only">
         Enter keywords like neural network, battery chemistry, or robotics and submit to search patents.
       </p>
+
+      {queryError && (
+        <p id={errorId} role="alert" className="mt-3 text-sm text-destructive">
+          {queryError}
+        </p>
+      )}
+
+      <div className="mt-4 rounded-xl border border-border/70 bg-muted/20 p-4 space-y-2">
+        <h3 className="text-sm font-semibold text-foreground">Query Helper</h3>
+        <p className="text-xs text-muted-foreground">
+          Use <span className="font-medium">AND</span>, <span className="font-medium">OR</span>, <span className="font-medium">NOT</span>,
+          parentheses, quotes for phrases, and fielded terms.
+        </p>
+        <ul className="text-xs text-muted-foreground space-y-1">
+          <li>&quot;solid state battery&quot; AND assignee:toyota</li>
+          <li>(graphene OR silicon) AND title:electrode</li>
+          <li>cpc:H01M NOT abstract:separator</li>
+        </ul>
+        <p className="text-xs text-muted-foreground">
+          Supported fields: <span className="font-medium">title</span>, <span className="font-medium">abstract</span>, <span className="font-medium">assignee</span>, <span className="font-medium">inventor</span>, <span className="font-medium">cpc</span>, <span className="font-medium">patent</span>.
+        </p>
+      </div>
 
       <div className="mt-6 p-4 bg-card border border-border rounded-xl space-y-4">
         <div className="flex items-center justify-between">

@@ -29,7 +29,9 @@ describe('SearchBar', () => {
     fireEvent.click(button);
 
     expect(onSearch).toHaveBeenCalledTimes(1);
-    expect(onSearch).toHaveBeenCalledWith('quantum computing', {});
+    expect(onSearch).toHaveBeenCalledWith('quantum computing', {}, expect.objectContaining({
+      normalized: 'quantum computing',
+    }));
   });
 
   it('keeps submit disabled while loading', () => {
@@ -68,5 +70,28 @@ describe('SearchBar', () => {
 
     fireEvent.click(clearButton);
     expect(onClearFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows inline validation message and prevents submit on invalid syntax', () => {
+    const onSearch = vi.fn();
+
+    render(
+      <SearchBar
+        onSearch={onSearch}
+        isLoading={false}
+        filters={defaultProps.filters}
+        onFiltersChange={defaultProps.onFiltersChange}
+        onClearFilters={defaultProps.onClearFilters}
+      />
+    );
+
+    const input = screen.getByPlaceholderText('Enter a topic, keyword, or technology...');
+    const button = screen.getByRole('button', { name: 'Search Patents' });
+
+    fireEvent.change(input, { target: { value: '(graphene OR silicon' } });
+    fireEvent.click(button);
+
+    expect(onSearch).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent('closing parenthesis');
   });
 });
