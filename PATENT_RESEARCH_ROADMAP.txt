@@ -55,6 +55,8 @@ Acceptance criteria
 - Result count and table update correctly for combined filters.
 - At least 4 tests for filter behavior (single + combined filters).
 
+done --
+
 2) Query Builder (Boolean + fielded)
 Why
 - Precision searching is mandatory for real prior-art work.
