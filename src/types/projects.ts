@@ -42,6 +42,12 @@ export interface SavedSearch {
   };
 }
 
+export type PatentReviewStatus =
+  | 'TO_REVIEW'
+  | 'RELEVANT'
+  | 'KEY_PRIOR_ART'
+  | 'EXCLUDED';
+
 export interface PatentReference {
   id: number;
   projectId: number;
@@ -56,8 +62,12 @@ export interface PatentReference {
     inventors: string[];
     provider: string;
     url?: string;
+    familyId?: string;
+    isFamilyRepresentative?: boolean;
   };
   pinnedAt: string;
+  status: PatentReviewStatus;
+  statusReason?: string;
   notes?: string;
   collectionIds?: number[];
 }

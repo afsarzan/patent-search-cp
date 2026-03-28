@@ -3,6 +3,7 @@ import {
   __resetProjectStoreForTests,
   addProjectComment,
   addProjectShare,
+  bulkUpdatePatentReviewStatus,
   createProjectCollection,
   createProject,
   getProjectDetail,
@@ -10,6 +11,7 @@ import {
   updateProject,
   pinPatentToProject,
   saveSearchToProject,
+  updatePatentReviewStatus,
 } from './projectRepository';
 
 describe('projectRepository', () => {
@@ -135,6 +137,83 @@ describe('projectRepository', () => {
     expect(detail.collections).toHaveLength(1);
     expect(detail.pinnedPatents[0].patentData.url).toContain('US1234567');
     expect(detail.pinnedPatents[0].collectionIds).toContain(collection.id);
+    expect(detail.pinnedPatents[0].status).toBe('TO_REVIEW');
+  });
+
+  it('updates a single patent review status with optional rationale', async () => {
+    const project = await createProject({ name: 'Status Workflow' });
+
+    const pinned = await pinPatentToProject(project.id, {
+      patent: {
+        id: 'workflow-1',
+        patentNumber: 'US7654321',
+        title: 'Separator chemistry optimization',
+        abstract: 'A separator approach for safer cycling.',
+        inventors: ['Robin Analyst'],
+        assignee: 'CellWorks',
+        filingDate: '2020-04-11',
+        grantDate: '2023-09-19',
+        url: 'https://patents.google.com/patent/US7654321',
+        provider: 'USPTO',
+      },
+    });
+
+    await updatePatentReviewStatus(project.id, pinned.id, {
+      status: 'KEY_PRIOR_ART',
+      statusReason: 'Closest claim overlap with baseline architecture.',
+    });
+
+    const detail = await getProjectDetail(project.id);
+    expect(detail.pinnedPatents).toHaveLength(1);
+    expect(detail.pinnedPatents[0].status).toBe('KEY_PRIOR_ART');
+    expect(detail.pinnedPatents[0].statusReason).toContain('Closest claim overlap');
+  });
+
+  it('bulk updates review status for selected pinned patents', async () => {
+    const project = await createProject({ name: 'Bulk Triage' });
+
+    const pinnedA = await pinPatentToProject(project.id, {
+      patent: {
+        id: 'bulk-1',
+        patentNumber: 'US9000001',
+        title: 'Composite electrode scaffold',
+        abstract: 'High surface area scaffold for electrodes.',
+        inventors: ['Taylor Researcher'],
+        assignee: 'Grid Labs',
+        filingDate: '2019-01-05',
+        grantDate: '2022-02-14',
+        url: 'https://patents.google.com/patent/US9000001',
+        provider: 'USPTO',
+      },
+    });
+
+    const pinnedB = await pinPatentToProject(project.id, {
+      patent: {
+        id: 'bulk-2',
+        patentNumber: 'US9000002',
+        title: 'Electrolyte blend for cycle life',
+        abstract: 'Electrolyte blend increases stability.',
+        inventors: ['Casey Researcher'],
+        assignee: 'Grid Labs',
+        filingDate: '2018-06-20',
+        grantDate: '2021-07-03',
+        url: 'https://patents.google.com/patent/US9000002',
+        provider: 'USPTO',
+      },
+    });
+
+    await bulkUpdatePatentReviewStatus(project.id, {
+      patentReferenceIds: [pinnedA.id, pinnedB.id],
+      status: 'EXCLUDED',
+      statusReason: 'Outside target chemistry stack.',
+    });
+
+    const detail = await getProjectDetail(project.id);
+    expect(detail.pinnedPatents).toHaveLength(2);
+    expect(detail.pinnedPatents.every((patent) => patent.status === 'EXCLUDED')).toBe(true);
+    expect(detail.pinnedPatents.every((patent) => patent.statusReason === 'Outside target chemistry stack.')).toBe(
+      true
+    );
   });
 
   it('updates project settings metadata', async () => {

@@ -2,6 +2,7 @@ import { Patent, PatentProvider } from '@/lib/patentApi';
 import {
   Comment,
   Collection,
+  PatentReviewStatus,
   PatentReference,
   Project,
   ProjectShare,
@@ -73,6 +74,17 @@ interface PinPatentInput {
   collectionId?: number;
 }
 
+interface UpdatePatentReviewStatusInput {
+  status: PatentReviewStatus;
+  statusReason?: string;
+}
+
+interface BulkUpdatePatentReviewStatusInput {
+  patentReferenceIds: number[];
+  status: PatentReviewStatus;
+  statusReason?: string;
+}
+
 const STORAGE_KEY = 'patent-explorer:project-store:v1';
 const CURRENT_USER_ID = 1;
 
@@ -121,9 +133,14 @@ function readStore(): ProjectStore {
 
   try {
     const parsed = JSON.parse(raw) as ProjectStore;
+    const hydratedPatents = (parsed.patents || []).map((patent) => ({
+      ...patent,
+      status: patent.status || 'TO_REVIEW',
+    }));
     return {
       ...createInitialState(),
       ...parsed,
+      patents: hydratedPatents,
     };
   } catch {
     const initial = createInitialState();
@@ -534,6 +551,10 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
         existing.collectionIds = Array.from(nextCollectionIds);
       }
 
+      if (!existing.status) {
+        existing.status = 'TO_REVIEW';
+      }
+
       project.updatedAt = nowIso();
       return existing;
     }
@@ -552,8 +573,11 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
         inventors: input.patent.inventors,
         provider: input.patent.provider,
         url: input.patent.url,
+        familyId: input.patent.familyId,
+        isFamilyRepresentative: input.patent.isFamilyRepresentative,
       },
       pinnedAt: nowIso(),
+      status: 'TO_REVIEW',
       notes: input.notes?.trim() || undefined,
       collectionIds: input.collectionId ? [input.collectionId] : undefined,
     };
@@ -562,6 +586,56 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
     project.updatedAt = nowIso();
 
     return reference;
+  });
+}
+
+export async function updatePatentReviewStatus(
+  projectId: number,
+  patentReferenceId: number,
+  input: UpdatePatentReviewStatusInput
+) {
+  return withStore((store) => {
+    const patentRef = store.patents.find(
+      (patent) => patent.projectId === projectId && patent.id === patentReferenceId
+    );
+    if (!patentRef) throw new Error('Pinned patent not found');
+
+    patentRef.status = input.status;
+    patentRef.statusReason = input.statusReason?.trim() || undefined;
+
+    const project = store.projects.find((entry) => entry.id === projectId);
+    if (project) project.updatedAt = nowIso();
+
+    return patentRef;
+  });
+}
+
+export async function bulkUpdatePatentReviewStatus(
+  projectId: number,
+  input: BulkUpdatePatentReviewStatusInput
+) {
+  return withStore((store) => {
+    const targetIds = new Set(input.patentReferenceIds);
+    if (targetIds.size === 0) {
+      return { updated: 0 };
+    }
+
+    let updated = 0;
+    store.patents.forEach((patentRef) => {
+      if (patentRef.projectId !== projectId || !targetIds.has(patentRef.id)) return;
+      patentRef.status = input.status;
+      patentRef.statusReason = input.statusReason?.trim() || undefined;
+      updated += 1;
+    });
+
+    if (updated === 0) {
+      throw new Error('No pinned patents found for update');
+    }
+
+    const project = store.projects.find((entry) => entry.id === projectId);
+    if (project) project.updatedAt = nowIso();
+
+    return { updated };
   });
 }
 

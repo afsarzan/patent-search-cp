@@ -46,6 +46,9 @@ export interface Patent {
   url: string;
   provider: PatentProvider;
   cpcCodes?: string[];
+  familyId?: string;
+  isFamilyRepresentative?: boolean;
+  familySize?: number;
 }
 
 export type PatentQueryField = 'title' | 'abstract' | 'assignee' | 'inventor' | 'cpc' | 'patent';
@@ -428,6 +431,100 @@ const mockGooglePatents: Patent[] = [
     provider: 'Google Patents'
   }
 ];
+
+const MOCK_PATENT_FAMILY_GROUPS: Array<{
+  familyId: string;
+  members: string[];
+  representativePatentNumber: string;
+}> = [
+  {
+    familyId: 'FAM-BATTERY-THERMAL',
+    members: ['US11456789', 'CN114567890'],
+    representativePatentNumber: 'US11456789',
+  },
+  {
+    familyId: 'FAM-QUANTUM-COMPUTE',
+    members: ['US11698432', 'WO2023/087654'],
+    representativePatentNumber: 'US11698432',
+  },
+  {
+    familyId: 'FAM-AI-EDGE-NLP',
+    members: ['US11847550', 'WO2023/065432'],
+    representativePatentNumber: 'US11847550',
+  },
+  {
+    familyId: 'FAM-AGRI-AUTOMATION',
+    members: ['EP4023456', 'WO2023/076543'],
+    representativePatentNumber: 'EP4023456',
+  },
+  {
+    familyId: 'FAM-CARBON-HYDROGEN',
+    members: ['WO2023/123456', 'EP4045678'],
+    representativePatentNumber: 'WO2023/123456',
+  },
+];
+
+function buildFamilyMaps() {
+  const familyIdByPatentNumber = new Map<string, string>();
+  const representativeByPatentNumber = new Set<string>();
+
+  MOCK_PATENT_FAMILY_GROUPS.forEach((group) => {
+    group.members.forEach((patentNumber) => {
+      familyIdByPatentNumber.set(patentNumber, group.familyId);
+    });
+    representativeByPatentNumber.add(group.representativePatentNumber);
+  });
+
+  return { familyIdByPatentNumber, representativeByPatentNumber };
+}
+
+function applyMockFamilyMetadata() {
+  const allPatents = [...mockUSPTOPatents, ...mockEPOPatents, ...mockWIPOPatents, ...mockGooglePatents];
+  const { familyIdByPatentNumber, representativeByPatentNumber } = buildFamilyMaps();
+
+  allPatents.forEach((patent) => {
+    const fallbackFamily = `FAM-SINGLE-${patent.provider.replace(/\s+/g, '-').toUpperCase()}-${patent.id}`;
+    patent.familyId = familyIdByPatentNumber.get(patent.patentNumber) || fallbackFamily;
+    patent.isFamilyRepresentative = representativeByPatentNumber.has(patent.patentNumber);
+  });
+
+  const familyCounts = new Map<string, number>();
+  allPatents.forEach((patent) => {
+    const familyId = patent.familyId as string;
+    familyCounts.set(familyId, (familyCounts.get(familyId) || 0) + 1);
+  });
+
+  allPatents.forEach((patent) => {
+    patent.familySize = familyCounts.get(patent.familyId as string) || 1;
+  });
+
+  const representativeByFamily = new Map<string, Patent>();
+  allPatents.forEach((patent) => {
+    const familyId = patent.familyId as string;
+    const existing = representativeByFamily.get(familyId);
+
+    if (patent.isFamilyRepresentative) {
+      representativeByFamily.set(familyId, patent);
+      return;
+    }
+
+    if (!existing) {
+      representativeByFamily.set(familyId, patent);
+      return;
+    }
+
+    if (patent.filingDate < existing.filingDate) {
+      representativeByFamily.set(familyId, patent);
+    }
+  });
+
+  allPatents.forEach((patent) => {
+    const familyRep = representativeByFamily.get(patent.familyId as string);
+    patent.isFamilyRepresentative = familyRep?.id === patent.id;
+  });
+}
+
+applyMockFamilyMetadata();
 
 type QueryToken =
   | { type: 'term'; value: string }

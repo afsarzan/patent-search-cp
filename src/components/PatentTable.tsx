@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Patent } from '@/lib/patentApi';
-import { ExternalLink, Users, Building2, Calendar, Pin } from 'lucide-react';
+import { ExternalLink, Users, Building2, Calendar, Pin, ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -18,12 +18,158 @@ interface PatentTableProps {
   total: number;
 }
 
+type PatentTableViewMode = 'flat' | 'family';
+
+interface FamilyGroup {
+  familyId: string;
+  patents: Patent[];
+  representative: Patent;
+}
+
 export function PatentTable({ patents, total }: PatentTableProps) {
   const [selectedPatent, setSelectedPatent] = useState<Patent | null>(null);
+  const [viewMode, setViewMode] = useState<PatentTableViewMode>('flat');
+  const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
 
   if (patents.length === 0) {
     return null;
   }
+
+  const familyGroups = useMemo<FamilyGroup[]>(() => {
+    const groups = new Map<string, Patent[]>();
+
+    patents.forEach((patent) => {
+      const familyId = patent.familyId || `FAM-SINGLE-${patent.provider}-${patent.id}`;
+      const family = groups.get(familyId) || [];
+      family.push(patent);
+      groups.set(familyId, family);
+    });
+
+    return Array.from(groups.entries())
+      .map(([familyId, members]) => {
+        const representative =
+          members.find((member) => member.isFamilyRepresentative) ||
+          members.slice().sort((a, b) => a.filingDate.localeCompare(b.filingDate))[0];
+
+        const sortedMembers = members.slice().sort((a, b) => {
+          if (a.id === representative.id) return -1;
+          if (b.id === representative.id) return 1;
+          return a.grantDate > b.grantDate ? -1 : 1;
+        });
+
+        return {
+          familyId,
+          patents: sortedMembers,
+          representative,
+        };
+      })
+      .sort((a, b) => {
+        if (a.patents.length !== b.patents.length) {
+          return b.patents.length - a.patents.length;
+        }
+        return a.representative.grantDate > b.representative.grantDate ? -1 : 1;
+      });
+  }, [patents]);
+
+  const isFamilyExpanded = (familyId: string) => expandedFamilies[familyId] !== false;
+
+  const toggleFamily = (familyId: string) => {
+    setExpandedFamilies((prev) => ({
+      ...prev,
+      [familyId]: !isFamilyExpanded(familyId),
+    }));
+  };
+
+  const renderPatentRow = (patent: Patent, index: number, rowKey?: string, nested = false) => (
+    <TableRow
+      key={rowKey || patent.id}
+      className={`hover:bg-muted/30 transition-colors ${nested ? 'bg-background/60' : ''}`}
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      <TableCell className="font-mono text-sm font-medium text-primary">
+        <div className="flex items-center gap-2">
+          {nested && <span className="text-muted-foreground">-</span>}
+          <span>{patent.patentNumber}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-medium text-foreground leading-tight">{patent.title}</h3>
+            {patent.isFamilyRepresentative && (
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+                Representative
+              </Badge>
+            )}
+            {patent.familySize && patent.familySize > 1 && (
+              <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+                Family {patent.familyId}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">{patent.abstract}</p>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-start gap-2">
+          <Users className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="text-sm text-muted-foreground">
+            {patent.inventors.slice(0, 3).map((inventor, inventorIndex) => (
+              <div key={inventorIndex} className="leading-tight">{inventor}</div>
+            ))}
+            {patent.inventors.length > 3 && (
+              <div className="text-xs text-muted-foreground/70">+{patent.inventors.length - 3} more</div>
+            )}
+          </div>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-start gap-2">
+          <Building2 className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <span className="text-sm text-muted-foreground line-clamp-2">{patent.assignee}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">{patent.grantDate}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline" className="text-xs whitespace-nowrap">
+          {patent.provider}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-center">
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
+            className="hover:bg-primary/10 hover:text-primary"
+          >
+            <a
+              href={patent.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View patent ${patent.patentNumber}`}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setSelectedPatent(patent)}
+          >
+            <Pin className="h-3.5 w-3.5" />
+            Pin
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
 
   return (
     <div className="w-full animate-fade-in">
@@ -34,9 +180,29 @@ export function PatentTable({ patents, total }: PatentTableProps) {
             Found <span className="font-medium text-foreground">{total.toLocaleString()}</span> patents
           </p>
         </div>
-        <Badge variant="secondary" className="text-sm px-4 py-2">
-          Showing {patents.length} of {total.toLocaleString()}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'flat' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('flat')}
+          >
+            Flat View
+          </Button>
+          <Button
+            variant={viewMode === 'family' ? 'default' : 'outline'}
+            size="sm"
+            className="gap-1"
+            onClick={() => setViewMode('family')}
+          >
+            <GitBranch className="h-3.5 w-3.5" />
+            Family View
+          </Button>
+          <Badge variant="secondary" className="text-sm px-4 py-2">
+            {viewMode === 'family'
+              ? `${familyGroups.length} families`
+              : `Showing ${patents.length} of ${total.toLocaleString()}`}
+          </Badge>
+        </div>
       </div>
 
       <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
@@ -54,91 +220,51 @@ export function PatentTable({ patents, total }: PatentTableProps) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {patents.map((patent, index) => (
-                <TableRow 
-                  key={patent.id} 
-                  className="hover:bg-muted/30 transition-colors"
-                  style={{ animationDelay: `${index * 50}ms` }}
-                >
-                  <TableCell className="font-mono text-sm font-medium text-primary">
-                    {patent.patentNumber}
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-2">
-                      <h3 className="font-medium text-foreground leading-tight">
-                        {patent.title}
-                      </h3>
-                      <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed">
-                        {patent.abstract}
-                      </p>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-start gap-2">
-                      <Users className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                      <div className="text-sm text-muted-foreground">
-                        {patent.inventors.slice(0, 3).map((inventor, i) => (
-                          <div key={i} className="leading-tight">{inventor}</div>
-                        ))}
-                        {patent.inventors.length > 3 && (
-                          <div className="text-xs text-muted-foreground/70">
-                            +{patent.inventors.length - 3} more
+              {viewMode === 'flat'
+                ? patents.map((patent, index) => renderPatentRow(patent, index))
+                : familyGroups.flatMap((group, index) => {
+                    const rows = [
+                      <TableRow
+                        key={`family-${group.familyId}`}
+                        className="bg-muted/40 hover:bg-muted/50 cursor-pointer"
+                        onClick={() => toggleFamily(group.familyId)}
+                      >
+                        <TableCell colSpan={7}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              {isFamilyExpanded(group.familyId) ? (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              )}
+                              <span className="font-medium text-foreground">{group.familyId}</span>
+                              <Badge variant="secondary" className="text-xs">
+                                {group.patents.length} member{group.patents.length > 1 ? 's' : ''}
+                              </Badge>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              Representative: {group.representative.patentNumber}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-start gap-2">
-                      <Building2 className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                      <span className="text-sm text-muted-foreground line-clamp-2">
-                        {patent.assignee}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">
-                        {patent.grantDate}
-                      </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs whitespace-nowrap">
-                      {patent.provider}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className="hover:bg-primary/10 hover:text-primary"
-                      >
-                        <a
-                          href={patent.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={`View patent ${patent.patentNumber}`}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-1"
-                        onClick={() => setSelectedPatent(patent)}
-                      >
-                        <Pin className="h-3.5 w-3.5" />
-                        Pin
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                        </TableCell>
+                      </TableRow>,
+                    ];
+
+                    if (isFamilyExpanded(group.familyId)) {
+                      rows.push(
+                        ...group.patents.map((patent, memberIndex) =>
+                          renderPatentRow(
+                            patent,
+                            index + memberIndex,
+                            `family-member-${group.familyId}-${patent.id}`,
+                            true
+                          )
+                        )
+                      );
+                    }
+
+                    return rows;
+                  })}
             </TableBody>
           </Table>
         </div>
