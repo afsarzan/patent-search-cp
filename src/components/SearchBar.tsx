@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   ParsedPatentQuery,
+  PatentLegalStatus,
   PatentProvider,
   PatentSearchFilters,
   PROVIDERS,
@@ -23,6 +24,7 @@ interface SearchBarProps {
 function normalizeFilters(filters: PatentSearchFilters): PatentSearchFilters {
   const trimmedAssignee = filters.assigneeContains?.trim();
   const trimmedInventor = filters.inventorContains?.trim();
+  const legalStatuses = filters.legalStatuses && filters.legalStatuses.length > 0 ? filters.legalStatuses : undefined;
 
   return {
     filingDateFrom: filters.filingDateFrom || undefined,
@@ -32,6 +34,7 @@ function normalizeFilters(filters: PatentSearchFilters): PatentSearchFilters {
     assigneeContains: trimmedAssignee || undefined,
     inventorContains: trimmedInventor || undefined,
     providers: filters.providers && filters.providers.length > 0 ? filters.providers : undefined,
+    legalStatuses,
   };
 }
 
@@ -58,6 +61,15 @@ export function SearchBar({ onSearch, isLoading, filters, onFiltersChange, onCle
     updateFilter('providers', nextProviders.length ? nextProviders : undefined);
   };
 
+  const toggleLegalStatus = (status: PatentLegalStatus, checked: boolean) => {
+    const currentStatuses = filters.legalStatuses ?? [];
+    const nextStatuses = checked
+      ? [...new Set([...currentStatuses, status])]
+      : currentStatuses.filter((entry) => entry !== status);
+
+    updateFilter('legalStatuses', nextStatuses.length ? nextStatuses : undefined);
+  };
+
   const hasActiveFilters = Boolean(
     filters.filingDateFrom ||
       filters.filingDateTo ||
@@ -65,7 +77,8 @@ export function SearchBar({ onSearch, isLoading, filters, onFiltersChange, onCle
       filters.grantDateTo ||
       filters.assigneeContains?.trim() ||
       filters.inventorContains?.trim() ||
-      (filters.providers && filters.providers.length > 0)
+      (filters.providers && filters.providers.length > 0) ||
+      (filters.legalStatuses && filters.legalStatuses.length > 0)
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -244,6 +257,30 @@ export function SearchBar({ onSearch, isLoading, filters, onFiltersChange, onCle
             })}
           </div>
           <p className="text-xs text-muted-foreground">Leave unchecked to search across all providers.</p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-foreground">Legal Status</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {(['PENDING', 'GRANTED', 'EXPIRED', 'LAPSED'] as PatentLegalStatus[]).map((status) => {
+              const checked = Boolean(filters.legalStatuses?.includes(status));
+
+              return (
+                <label
+                  key={status}
+                  className="flex items-center gap-2 text-sm border border-border rounded-lg px-3 py-2 cursor-pointer hover:bg-muted/40"
+                >
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(value) => toggleLegalStatus(status, value === true)}
+                    aria-label={`Filter by ${status}`}
+                  />
+                  <span>{status}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">Leave unchecked to include all legal statuses.</p>
         </div>
       </div>
     </form>

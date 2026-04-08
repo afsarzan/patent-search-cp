@@ -67,6 +67,19 @@ describe('searchPatents', () => {
     expect(result.patents[0]?.assignee).toContain('Tesla');
   });
 
+  it('filters by legal status', async () => {
+    const grantedResult = await searchPatents('assignee:google', 'USPTO', 1, 25, {
+      legalStatuses: ['GRANTED'],
+    });
+    const expiredResult = await searchPatents('assignee:google', 'USPTO', 1, 25, {
+      legalStatuses: ['EXPIRED'],
+    });
+
+    expect(grantedResult.total).toBe(1);
+    expect(grantedResult.patents[0]?.legalStatus).toBe('GRANTED');
+    expect(expiredResult.total).toBe(0);
+  });
+
   it('honors fielded terms and AND operator', async () => {
     const result = await searchPatents('title:transformer AND assignee:google', 'USPTO');
 
@@ -128,5 +141,14 @@ describe('searchAllProviders', () => {
     expect(
       result.patents.every((patent) => patent.grantDate >= '2023-07-01' && patent.grantDate <= '2023-12-31')
     ).toBe(true);
+  });
+
+  it('applies legal status filters across providers', async () => {
+    const result = await searchAllProviders('battery', {
+      legalStatuses: ['GRANTED'],
+    });
+
+    expect(result.total).toBeGreaterThan(0);
+    expect(result.patents.every((patent) => patent.legalStatus === 'GRANTED')).toBe(true);
   });
 });

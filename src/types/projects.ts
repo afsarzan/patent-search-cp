@@ -48,6 +48,8 @@ export type PatentReviewStatus =
   | 'KEY_PRIOR_ART'
   | 'EXCLUDED';
 
+export type PatentLegalStatus = 'PENDING' | 'GRANTED' | 'EXPIRED' | 'LAPSED';
+
 export interface PatentReference {
   id: number;
   projectId: number;
@@ -62,6 +64,7 @@ export interface PatentReference {
     inventors: string[];
     provider: string;
     url?: string;
+    legalStatus?: PatentLegalStatus;
     familyId?: string;
     isFamilyRepresentative?: boolean;
   };

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Patent } from '@/lib/patentApi';
-import { ExternalLink, Users, Building2, Calendar, Pin, ChevronDown, ChevronRight, GitBranch } from 'lucide-react';
+import { ExternalLink, Users, Building2, Calendar, Pin, ChevronDown, ChevronRight, GitBranch, ShieldAlert } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -12,6 +12,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PinPatentModal } from '@/components/projects/PinPatentModal';
+import { PatentLegalStatus } from '@/types/projects';
 
 interface PatentTableProps {
   patents: Patent[];
@@ -30,10 +31,6 @@ export function PatentTable({ patents, total }: PatentTableProps) {
   const [selectedPatent, setSelectedPatent] = useState<Patent | null>(null);
   const [viewMode, setViewMode] = useState<PatentTableViewMode>('flat');
   const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
-
-  if (patents.length === 0) {
-    return null;
-  }
 
   const familyGroups = useMemo<FamilyGroup[]>(() => {
     const groups = new Map<string, Patent[]>();
@@ -70,6 +67,30 @@ export function PatentTable({ patents, total }: PatentTableProps) {
         return a.representative.grantDate > b.representative.grantDate ? -1 : 1;
       });
   }, [patents]);
+
+  if (patents.length === 0) {
+    return null;
+  }
+
+  const legalStatusLabel: Record<PatentLegalStatus, string> = {
+    PENDING: 'Pending',
+    GRANTED: 'Granted',
+    EXPIRED: 'Expired',
+    LAPSED: 'Lapsed',
+  };
+
+  const legalStatusVariant: Record<PatentLegalStatus, 'secondary' | 'default' | 'destructive' | 'outline'> = {
+    PENDING: 'secondary',
+    GRANTED: 'default',
+    EXPIRED: 'destructive',
+    LAPSED: 'outline',
+  };
+
+  const getRiskTone = (status?: PatentLegalStatus) => {
+    if (status === 'PENDING') return 'Pending review';
+    if (status === 'EXPIRED' || status === 'LAPSED') return 'Higher risk';
+    return 'Lower risk';
+  };
 
   const isFamilyExpanded = (familyId: string) => expandedFamilies[familyId] !== false;
 
@@ -139,6 +160,17 @@ export function PatentTable({ patents, total }: PatentTableProps) {
         <Badge variant="outline" className="text-xs whitespace-nowrap">
           {patent.provider}
         </Badge>
+      </TableCell>
+      <TableCell>
+        <div className="space-y-2">
+          <Badge variant={legalStatusVariant[patent.legalStatus || 'GRANTED']} className="text-xs whitespace-nowrap">
+            {(patent.legalStatus && legalStatusLabel[patent.legalStatus]) || 'Granted'}
+          </Badge>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <ShieldAlert className="h-3.5 w-3.5" />
+            {getRiskTone(patent.legalStatus)}
+          </div>
+        </div>
       </TableCell>
       <TableCell className="text-center">
         <div className="flex items-center justify-center gap-2">
@@ -216,6 +248,7 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                 <TableHead className="font-semibold text-foreground w-48">Assignee</TableHead>
                 <TableHead className="font-semibold text-foreground w-32">Date</TableHead>
                 <TableHead className="font-semibold text-foreground w-24">Source</TableHead>
+                <TableHead className="font-semibold text-foreground w-36">Legal Status</TableHead>
                 <TableHead className="font-semibold text-foreground w-48 text-center">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -229,7 +262,7 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                         className="bg-muted/40 hover:bg-muted/50 cursor-pointer"
                         onClick={() => toggleFamily(group.familyId)}
                       >
-                        <TableCell colSpan={7}>
+                        <TableCell colSpan={8}>
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
                               {isFamilyExpanded(group.familyId) ? (

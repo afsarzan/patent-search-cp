@@ -130,6 +130,9 @@ const Index = () => {
     activeFilters.providers && activeFilters.providers.length > 0
       ? { key: 'providers' as const, label: `Providers: ${activeFilters.providers.join(', ')}` }
       : null,
+    activeFilters.legalStatuses && activeFilters.legalStatuses.length > 0
+      ? { key: 'legalStatuses' as const, label: `Legal: ${activeFilters.legalStatuses.join(', ')}` }
+      : null,
   ].filter((value): value is { key: keyof PatentSearchFilters; label: string } => value !== null);
 
   const providerLabel =

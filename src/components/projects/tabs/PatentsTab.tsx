@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2, ExternalLink, CheckCheck } from 'lucide-react';
-import { PatentReference, Collection, PatentReviewStatus } from '@/types/projects';
+import { PatentReference, Collection, PatentReviewStatus, PatentLegalStatus } from '@/types/projects';
 import {
   bulkUpdatePatentReviewStatus,
   deletePinnedPatent,
@@ -41,6 +41,26 @@ const STATUS_BADGE_VARIANT: Record<PatentReviewStatus, 'secondary' | 'default' |
   KEY_PRIOR_ART: 'outline',
   EXCLUDED: 'destructive',
 };
+
+const LEGAL_STATUS_LABEL: Record<PatentLegalStatus, string> = {
+  PENDING: 'Pending',
+  GRANTED: 'Granted',
+  EXPIRED: 'Expired',
+  LAPSED: 'Lapsed',
+};
+
+const LEGAL_STATUS_VARIANT: Record<PatentLegalStatus, 'secondary' | 'default' | 'outline' | 'destructive'> = {
+  PENDING: 'secondary',
+  GRANTED: 'default',
+  EXPIRED: 'destructive',
+  LAPSED: 'outline',
+};
+
+function getRiskLabel(status?: PatentLegalStatus) {
+  if (status === 'PENDING') return 'Pending review';
+  if (status === 'EXPIRED' || status === 'LAPSED') return 'Higher risk';
+  return 'Lower risk';
+}
 
 function getStatusLabel(status: PatentReviewStatus) {
   return REVIEW_STATUS_OPTIONS.find((option) => option.value === status)?.label || status;
@@ -294,7 +314,12 @@ export const PatentsTab = ({
                   <Badge variant="outline" className="text-xs">
                     {patent.patentData.filingDate}
                   </Badge>
+                  <Badge variant={LEGAL_STATUS_VARIANT[patent.patentData.legalStatus || 'GRANTED']} className="text-xs">
+                    {LEGAL_STATUS_LABEL[patent.patentData.legalStatus || 'GRANTED']}
+                  </Badge>
                 </div>
+
+                <p className="text-xs text-muted-foreground">Risk signal: {getRiskLabel(patent.patentData.legalStatus)}</p>
 
                 {patent.notes && (
                   <div className="bg-muted p-2 rounded text-xs">

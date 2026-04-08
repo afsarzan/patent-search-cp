@@ -126,6 +126,7 @@ describe('projectRepository', () => {
         grantDate: '2024-02-12',
         url: 'https://patents.google.com/patent/US1234567',
         provider: 'USPTO',
+        legalStatus: 'GRANTED',
       },
       notes: 'Relevant to baseline architecture',
       collectionId: collection.id,
@@ -136,6 +137,7 @@ describe('projectRepository', () => {
     expect(detail.pinnedPatents).toHaveLength(1);
     expect(detail.collections).toHaveLength(1);
     expect(detail.pinnedPatents[0].patentData.url).toContain('US1234567');
+    expect(detail.pinnedPatents[0].patentData.legalStatus).toBe('GRANTED');
     expect(detail.pinnedPatents[0].collectionIds).toContain(collection.id);
     expect(detail.pinnedPatents[0].status).toBe('TO_REVIEW');
   });

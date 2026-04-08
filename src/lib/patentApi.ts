@@ -49,7 +49,10 @@ export interface Patent {
   familyId?: string;
   isFamilyRepresentative?: boolean;
   familySize?: number;
+  legalStatus?: PatentLegalStatus;
 }
+
+export type PatentLegalStatus = 'PENDING' | 'GRANTED' | 'EXPIRED' | 'LAPSED';
 
 export type PatentQueryField = 'title' | 'abstract' | 'assignee' | 'inventor' | 'cpc' | 'patent';
 
@@ -102,6 +105,7 @@ export interface PatentSearchFilters {
   assigneeContains?: string;
   inventorContains?: string;
   providers?: PatentProvider[];
+  legalStatuses?: PatentLegalStatus[];
 }
 
 export interface PatentSearchFacets {
@@ -116,6 +120,25 @@ const EMPTY_FACETS: PatentSearchFacets = {
   providerSplit: [],
 };
 
+function getPatentRiskLevel(legalStatus?: PatentLegalStatus) {
+  switch (legalStatus) {
+    case 'PENDING':
+      return { label: 'Pending', tone: 'secondary' as const };
+    case 'GRANTED':
+      return { label: 'Granted', tone: 'default' as const };
+    case 'EXPIRED':
+      return { label: 'Expired', tone: 'destructive' as const };
+    case 'LAPSED':
+      return { label: 'Lapsed', tone: 'destructive' as const };
+    default:
+      return { label: 'Unknown', tone: 'outline' as const };
+  }
+}
+
+function assignLegalStatus(status: PatentLegalStatus) {
+  return status;
+}
+
 // Mock patent data for demonstration - USPTO
 const mockUSPTOPatents: Patent[] = [
   {
@@ -129,6 +152,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2023-12-19",
     url: "https://patents.google.com/patent/US11847550",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "11823017",
@@ -141,6 +165,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2023-11-21",
     url: "https://patents.google.com/patent/US11823017",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "11756684",
@@ -153,6 +178,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2023-09-12",
     url: "https://patents.google.com/patent/US11756684",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('EXPIRED')
   },
   {
     id: "11698432",
@@ -165,6 +191,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2023-07-11",
     url: "https://patents.google.com/patent/US11698432",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "11654123",
@@ -177,6 +204,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2023-05-23",
     url: "https://patents.google.com/patent/US11654123",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "11612890",
@@ -189,6 +217,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2023-03-28",
     url: "https://patents.google.com/patent/US11612890",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "11578234",
@@ -201,6 +230,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2023-02-14",
     url: "https://patents.google.com/patent/US11578234",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('LAPSED')
   },
   {
     id: "11534567",
@@ -213,6 +243,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2022-12-20",
     url: "https://patents.google.com/patent/US11534567",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "11498901",
@@ -225,6 +256,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2022-11-15",
     url: "https://patents.google.com/patent/US11498901",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('EXPIRED')
   },
   {
     id: "11456789",
@@ -237,6 +269,7 @@ const mockUSPTOPatents: Patent[] = [
     grantDate: "2022-09-27",
     url: "https://patents.google.com/patent/US11456789",
     provider: 'USPTO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   }
 ];
 
@@ -253,6 +286,7 @@ const mockEPOPatents: Patent[] = [
     grantDate: "2023-10-18",
     url: "https://worldwide.espacenet.com/patent/EP4123456",
     provider: 'EPO'
+    ,legalStatus: assignLegalStatus('PENDING')
   },
   {
     id: "EP4098765",
@@ -265,6 +299,7 @@ const mockEPOPatents: Patent[] = [
     grantDate: "2023-08-07",
     url: "https://worldwide.espacenet.com/patent/EP4098765",
     provider: 'EPO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "EP4067890",
@@ -277,6 +312,7 @@ const mockEPOPatents: Patent[] = [
     grantDate: "2023-06-22",
     url: "https://worldwide.espacenet.com/patent/EP4067890",
     provider: 'EPO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "EP4045678",
@@ -289,6 +325,7 @@ const mockEPOPatents: Patent[] = [
     grantDate: "2023-04-11",
     url: "https://worldwide.espacenet.com/patent/EP4045678",
     provider: 'EPO'
+    ,legalStatus: assignLegalStatus('LAPSED')
   },
   {
     id: "EP4023456",
@@ -301,6 +338,7 @@ const mockEPOPatents: Patent[] = [
     grantDate: "2023-03-15",
     url: "https://worldwide.espacenet.com/patent/EP4023456",
     provider: 'EPO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   }
 ];
 
@@ -317,6 +355,7 @@ const mockWIPOPatents: Patent[] = [
     grantDate: "2023-12-28",
     url: "https://patentscope.wipo.int/search/WO2023123456",
     provider: 'WIPO'
+    ,legalStatus: assignLegalStatus('PENDING')
   },
   {
     id: "WO2023098765",
@@ -329,6 +368,7 @@ const mockWIPOPatents: Patent[] = [
     grantDate: "2023-10-19",
     url: "https://patentscope.wipo.int/search/WO2023098765",
     provider: 'WIPO'
+    ,legalStatus: assignLegalStatus('PENDING')
   },
   {
     id: "WO2023087654",
@@ -341,6 +381,7 @@ const mockWIPOPatents: Patent[] = [
     grantDate: "2023-11-30",
     url: "https://patentscope.wipo.int/search/WO2023087654",
     provider: 'WIPO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "WO2023076543",
@@ -353,6 +394,7 @@ const mockWIPOPatents: Patent[] = [
     grantDate: "2023-09-14",
     url: "https://patentscope.wipo.int/search/WO2023076543",
     provider: 'WIPO'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "WO2023065432",
@@ -365,6 +407,7 @@ const mockWIPOPatents: Patent[] = [
     grantDate: "2023-07-25",
     url: "https://patentscope.wipo.int/search/WO2023065432",
     provider: 'WIPO'
+    ,legalStatus: assignLegalStatus('EXPIRED')
   }
 ];
 
@@ -381,6 +424,7 @@ const mockGooglePatents: Patent[] = [
     grantDate: "2023-05-30",
     url: "https://patents.google.com/patent/CN114567890",
     provider: 'Google Patents'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "JP2023987654",
@@ -393,6 +437,7 @@ const mockGooglePatents: Patent[] = [
     grantDate: "2023-08-18",
     url: "https://patents.google.com/patent/JP2023987654",
     provider: 'Google Patents'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "KR102345678",
@@ -405,6 +450,7 @@ const mockGooglePatents: Patent[] = [
     grantDate: "2023-04-05",
     url: "https://patents.google.com/patent/KR102345678",
     provider: 'Google Patents'
+    ,legalStatus: assignLegalStatus('GRANTED')
   },
   {
     id: "AU2023234567",
@@ -417,6 +463,7 @@ const mockGooglePatents: Patent[] = [
     grantDate: "2023-11-08",
     url: "https://patents.google.com/patent/AU2023234567",
     provider: 'Google Patents'
+    ,legalStatus: assignLegalStatus('PENDING')
   },
   {
     id: "BR1020230123456",
@@ -429,6 +476,7 @@ const mockGooglePatents: Patent[] = [
     grantDate: "2023-09-29",
     url: "https://patents.google.com/patent/BR1020230123456",
     provider: 'Google Patents'
+    ,legalStatus: assignLegalStatus('LAPSED')
   }
 ];
 
@@ -890,6 +938,13 @@ function filterByAdvancedFilters(patent: Patent, filters?: PatentSearchFilters) 
 
   if (filters.providers && filters.providers.length > 0 && !filters.providers.includes(patent.provider)) {
     return false;
+  }
+
+  if (filters.legalStatuses && filters.legalStatuses.length > 0) {
+    const legalStatus = patent.legalStatus || 'GRANTED';
+    if (!filters.legalStatuses.includes(legalStatus)) {
+      return false;
+    }
   }
 
   return true;

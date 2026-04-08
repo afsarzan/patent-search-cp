@@ -545,6 +545,8 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
         existing.notes = input.notes.trim();
       }
 
+      existing.patentData.legalStatus = input.patent.legalStatus;
+
       if (input.collectionId) {
         const nextCollectionIds = new Set(existing.collectionIds || []);
         nextCollectionIds.add(input.collectionId);
@@ -575,6 +577,7 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
         url: input.patent.url,
         familyId: input.patent.familyId,
         isFamilyRepresentative: input.patent.isFamilyRepresentative,
+        legalStatus: input.patent.legalStatus,
       },
       pinnedAt: nowIso(),
       status: 'TO_REVIEW',
