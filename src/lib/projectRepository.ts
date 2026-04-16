@@ -2,6 +2,7 @@ import { Patent, PatentProvider } from '@/lib/patentApi';
 import {
   Comment,
   Collection,
+  isPatentReviewStatus,
   PatentReviewStatus,
   PatentReference,
   Project,
@@ -135,7 +136,11 @@ function readStore(): ProjectStore {
     const parsed = JSON.parse(raw) as ProjectStore;
     const hydratedPatents = (parsed.patents || []).map((patent) => ({
       ...patent,
-      status: patent.status || 'TO_REVIEW',
+      status: isPatentReviewStatus(patent.status) ? patent.status : 'TO_REVIEW',
+      statusReason:
+        typeof patent.statusReason === 'string' && patent.statusReason.trim().length > 0
+          ? patent.statusReason.trim()
+          : undefined,
     }));
     return {
       ...createInitialState(),

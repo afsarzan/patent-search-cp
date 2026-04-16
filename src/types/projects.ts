@@ -42,11 +42,21 @@ export interface SavedSearch {
   };
 }
 
-export type PatentReviewStatus =
-  | 'TO_REVIEW'
-  | 'RELEVANT'
-  | 'KEY_PRIOR_ART'
-  | 'EXCLUDED';
+export const PATENT_REVIEW_STATUS_VALUES = [
+  'TO_REVIEW',
+  'RELEVANT',
+  'KEY_PRIOR_ART',
+  'EXCLUDED',
+] as const;
+
+export type PatentReviewStatus = (typeof PATENT_REVIEW_STATUS_VALUES)[number];
+
+export function isPatentReviewStatus(value: unknown): value is PatentReviewStatus {
+  return (
+    typeof value === 'string' &&
+    (PATENT_REVIEW_STATUS_VALUES as readonly string[]).includes(value)
+  );
+}
 
 export type PatentLegalStatus = 'PENDING' | 'GRANTED' | 'EXPIRED' | 'LAPSED';
 
