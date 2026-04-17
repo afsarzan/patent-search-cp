@@ -171,6 +171,41 @@ describe('projectRepository', () => {
     expect(detail.pinnedPatents[0].statusReason).toContain('Closest claim overlap');
   });
 
+  it('hydrates missing or invalid review status after reload', async () => {
+    const project = await createProject({ name: 'Hydration Migration' });
+
+    await pinPatentToProject(project.id, {
+      patent: {
+        id: 'hydrate-1',
+        patentNumber: 'US1010101',
+        title: 'Charge balancing topology',
+        abstract: 'Topology that balances cell charge across packs.',
+        inventors: ['Morgan Analyst'],
+        assignee: 'Pack Systems',
+        filingDate: '2019-08-10',
+        grantDate: '2022-12-05',
+        url: 'https://patents.google.com/patent/US1010101',
+        provider: 'USPTO',
+      },
+    });
+
+    const storageKey = 'patent-explorer:project-store:v1';
+    const raw = window.localStorage.getItem(storageKey);
+    expect(raw).toBeTruthy();
+
+    const store = JSON.parse(raw as string) as {
+      patents: Array<{ status?: string; statusReason?: string }>;
+    };
+    store.patents[0].status = 'UNKNOWN_STATUS';
+    store.patents[0].statusReason = '   ';
+    window.localStorage.setItem(storageKey, JSON.stringify(store));
+
+    const detail = await getProjectDetail(project.id);
+    expect(detail.pinnedPatents).toHaveLength(1);
+    expect(detail.pinnedPatents[0].status).toBe('TO_REVIEW');
+    expect(detail.pinnedPatents[0].statusReason).toBeUndefined();
+  });
+
   it('bulk updates review status for selected pinned patents', async () => {
     const project = await createProject({ name: 'Bulk Triage' });
 
@@ -204,6 +239,21 @@ describe('projectRepository', () => {
       },
     });
 
+    const pinnedC = await pinPatentToProject(project.id, {
+      patent: {
+        id: 'bulk-3',
+        patentNumber: 'US9000003',
+        title: 'Anode pretreatment workflow',
+        abstract: 'Pretreatment method for anode consistency.',
+        inventors: ['Jordan Researcher'],
+        assignee: 'Grid Labs',
+        filingDate: '2017-03-12',
+        grantDate: '2020-10-23',
+        url: 'https://patents.google.com/patent/US9000003',
+        provider: 'USPTO',
+      },
+    });
+
     await bulkUpdatePatentReviewStatus(project.id, {
       patentReferenceIds: [pinnedA.id, pinnedB.id],
       status: 'EXCLUDED',
@@ -211,11 +261,17 @@ describe('projectRepository', () => {
     });
 
     const detail = await getProjectDetail(project.id);
-    expect(detail.pinnedPatents).toHaveLength(2);
-    expect(detail.pinnedPatents.every((patent) => patent.status === 'EXCLUDED')).toBe(true);
-    expect(detail.pinnedPatents.every((patent) => patent.statusReason === 'Outside target chemistry stack.')).toBe(
-      true
-    );
+    expect(detail.pinnedPatents).toHaveLength(3);
+
+    const updatedPatentIds = new Set([pinnedA.id, pinnedB.id]);
+    const updatedPatents = detail.pinnedPatents.filter((patent) => updatedPatentIds.has(patent.id));
+    const untouchedPatent = detail.pinnedPatents.find((patent) => patent.id === pinnedC.id);
+
+    expect(updatedPatents).toHaveLength(2);
+    expect(updatedPatents.every((patent) => patent.status === 'EXCLUDED')).toBe(true);
+    expect(updatedPatents.every((patent) => patent.statusReason === 'Outside target chemistry stack.')).toBe(true);
+    expect(untouchedPatent?.status).toBe('TO_REVIEW');
+    expect(untouchedPatent?.statusReason).toBeUndefined();
   });
 
   it('updates project settings metadata', async () => {

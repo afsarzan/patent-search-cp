@@ -118,7 +118,11 @@ export const PatentsTab = ({
   });
 
   const statusCounts = useMemo(() => {
-    return patents.reduce(
+    const patentsInScope = selectedCollection
+      ? patents.filter((patent) => patent.collectionIds?.includes(selectedCollection))
+      : patents;
+
+    return patentsInScope.reduce(
       (acc, patent) => {
         acc.ALL += 1;
         acc[patent.status] += 1;
@@ -132,7 +136,7 @@ export const PatentsTab = ({
         EXCLUDED: 0,
       } as Record<'ALL' | PatentReviewStatus, number>
     );
-  }, [patents]);
+  }, [patents, selectedCollection]);
 
   if (patents.length === 0) {
     return (
