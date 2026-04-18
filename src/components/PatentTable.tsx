@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Patent } from '@/lib/patentApi';
+import { Patent, getPatentFamilyId } from '@/lib/patentApi';
 import { ExternalLink, Users, Building2, Calendar, Pin, ChevronDown, ChevronRight, GitBranch, ShieldAlert } from 'lucide-react';
 import {
   Table,
@@ -36,7 +36,7 @@ export function PatentTable({ patents, total }: PatentTableProps) {
     const groups = new Map<string, Patent[]>();
 
     patents.forEach((patent) => {
-      const familyId = patent.familyId || `FAM-SINGLE-${patent.provider}-${patent.id}`;
+      const familyId = getPatentFamilyId(patent);
       const family = groups.get(familyId) || [];
       family.push(patent);
       groups.set(familyId, family);
@@ -51,7 +51,10 @@ export function PatentTable({ patents, total }: PatentTableProps) {
         const sortedMembers = members.slice().sort((a, b) => {
           if (a.id === representative.id) return -1;
           if (b.id === representative.id) return 1;
-          return a.grantDate > b.grantDate ? -1 : 1;
+          if (a.grantDate !== b.grantDate) {
+            return a.grantDate > b.grantDate ? -1 : 1;
+          }
+          return a.patentNumber.localeCompare(b.patentNumber);
         });
 
         return {
@@ -64,7 +67,10 @@ export function PatentTable({ patents, total }: PatentTableProps) {
         if (a.patents.length !== b.patents.length) {
           return b.patents.length - a.patents.length;
         }
-        return a.representative.grantDate > b.representative.grantDate ? -1 : 1;
+        if (a.representative.grantDate !== b.representative.grantDate) {
+          return a.representative.grantDate > b.representative.grantDate ? -1 : 1;
+        }
+        return a.familyId.localeCompare(b.familyId);
       });
   }, [patents]);
 
@@ -274,6 +280,9 @@ export function PatentTable({ patents, total }: PatentTableProps) {
                               <Badge variant="secondary" className="text-xs">
                                 {group.patents.length} member{group.patents.length > 1 ? 's' : ''}
                               </Badge>
+                              <span className="text-xs text-muted-foreground hidden md:inline">
+                                {group.representative.title}
+                              </span>
                             </div>
                             <span className="text-xs text-muted-foreground">
                               Representative: {group.representative.patentNumber}

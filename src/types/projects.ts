@@ -77,6 +77,7 @@ export interface PatentReference {
     legalStatus?: PatentLegalStatus;
     familyId?: string;
     isFamilyRepresentative?: boolean;
+    familySize?: number;
   };
   pinnedAt: string;
   status: PatentReviewStatus;

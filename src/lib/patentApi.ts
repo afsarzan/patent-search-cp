@@ -52,6 +52,11 @@ export interface Patent {
   legalStatus?: PatentLegalStatus;
 }
 
+export function getPatentFamilyId(patent: Pick<Patent, 'familyId' | 'provider' | 'id'>): string {
+  if (patent.familyId) return patent.familyId;
+  return `FAM-SINGLE-${patent.provider.replace(/\s+/g, '-').toUpperCase()}-${patent.id}`;
+}
+
 export type PatentLegalStatus = 'PENDING' | 'GRANTED' | 'EXPIRED' | 'LAPSED';
 
 export type PatentQueryField = 'title' | 'abstract' | 'assignee' | 'inventor' | 'cpc' | 'patent';
@@ -531,8 +536,7 @@ function applyMockFamilyMetadata() {
   const { familyIdByPatentNumber, representativeByPatentNumber } = buildFamilyMaps();
 
   allPatents.forEach((patent) => {
-    const fallbackFamily = `FAM-SINGLE-${patent.provider.replace(/\s+/g, '-').toUpperCase()}-${patent.id}`;
-    patent.familyId = familyIdByPatentNumber.get(patent.patentNumber) || fallbackFamily;
+    patent.familyId = familyIdByPatentNumber.get(patent.patentNumber) || getPatentFamilyId(patent);
     patent.isFamilyRepresentative = representativeByPatentNumber.has(patent.patentNumber);
   });
 
@@ -562,6 +566,12 @@ function applyMockFamilyMetadata() {
     }
 
     if (patent.filingDate < existing.filingDate) {
+      representativeByFamily.set(familyId, patent);
+      return;
+    }
+
+    // Keep representative selection deterministic when filing dates tie.
+    if (patent.filingDate === existing.filingDate && patent.patentNumber.localeCompare(existing.patentNumber) < 0) {
       representativeByFamily.set(familyId, patent);
     }
   });
