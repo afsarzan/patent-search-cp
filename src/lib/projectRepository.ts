@@ -550,6 +550,8 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
         existing.notes = input.notes.trim();
       }
 
+      existing.patentData.independentClaims = input.patent.independentClaims;
+      existing.patentData.dependentClaimsSummary = input.patent.dependentClaimsSummary;
       existing.patentData.legalStatus = input.patent.legalStatus;
 
       if (input.collectionId) {
@@ -575,6 +577,8 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
         title: input.patent.title,
         assignee: input.patent.assignee,
         abstract: input.patent.abstract,
+        independentClaims: input.patent.independentClaims,
+        dependentClaimsSummary: input.patent.dependentClaimsSummary,
         filingDate: input.patent.filingDate,
         grantDate: input.patent.grantDate,
         inventors: input.patent.inventors,

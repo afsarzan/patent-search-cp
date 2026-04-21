@@ -39,6 +39,8 @@ export interface Patent {
   patentNumber: string;
   title: string;
   abstract: string;
+  independentClaims?: string[];
+  dependentClaimsSummary?: string;
   inventors: string[];
   assignee: string;
   filingDate: string;
@@ -153,6 +155,11 @@ const mockUSPTOPatents: Patent[] = [
     abstract: "A system and method for processing natural language using deep learning transformer models. The invention includes attention mechanisms that enable parallel processing of sequential data, significantly improving translation accuracy and text generation capabilities.",
     inventors: ["John Smith", "Sarah Chen", "Michael Johnson"],
     assignee: "Google LLC",
+    independentClaims: [
+      'A computer-implemented method for generating a natural language output using transformer attention layers.',
+      'A system comprising one or more processors configured to encode a token sequence and generate a prediction based on contextual embeddings.',
+    ],
+    dependentClaimsSummary: 'Dependent claims narrow the attention mechanism, output decoding, and token sampling parameters.',
     filingDate: "2021-03-15",
     grantDate: "2023-12-19",
     url: "https://patents.google.com/patent/US11847550",
@@ -192,6 +199,11 @@ const mockUSPTOPatents: Patent[] = [
     abstract: "A method for implementing fault-tolerant quantum computation using topological qubit encoding. The invention provides exponentially better error protection compared to conventional approaches, enabling practical quantum advantage for complex calculations.",
     inventors: ["Robert Zhang", "Lisa Anderson", "Kevin O'Brien", "Nina Patel"],
     assignee: "Microsoft Technology Licensing, LLC",
+    independentClaims: [
+      'A quantum computing method using topological qubit encoding to preserve quantum state coherence.',
+      'A fault-tolerant computing system configured to execute logic operations on protected qubits.'
+    ],
+    dependentClaimsSummary: 'Dependent claims cover error syndromes, stabilizer checks, and correction cycle timing.',
     filingDate: "2020-02-14",
     grantDate: "2023-07-11",
     url: "https://patents.google.com/patent/US11698432",
@@ -270,6 +282,11 @@ const mockUSPTOPatents: Patent[] = [
     abstract: "A cooling system for lithium-ion battery packs in electric vehicles. The invention integrates phase change materials with liquid cooling channels to maintain optimal operating temperatures, extending battery life and enabling faster charging rates.",
     inventors: ["Mark Robinson", "Catherine Young", "Paul King"],
     assignee: "Rivian Automotive, LLC",
+    independentClaims: [
+      'A battery thermal management system with phase change material positioned adjacent to a battery module.',
+      'A vehicle cooling assembly configured to circulate coolant through a battery pack enclosure.'
+    ],
+    dependentClaimsSummary: 'Dependent claims address material composition, coolant routing, and thermal threshold controls.',
     filingDate: "2021-07-09",
     grantDate: "2022-09-27",
     url: "https://patents.google.com/patent/US11456789",
@@ -339,6 +356,11 @@ const mockEPOPatents: Patent[] = [
     abstract: "A remote sensing platform for crop health monitoring and yield optimization. The system combines drone-based hyperspectral cameras with machine learning algorithms to detect diseases, nutrient deficiencies, and water stress at early stages.",
     inventors: ["Carlos Fernández", "Ingrid Bergman"],
     assignee: "Bayer CropScience",
+    independentClaims: [
+      'A precision agriculture system using hyperspectral imaging to determine crop condition.',
+      'A remote sensing platform configured to generate treatment recommendations based on field data.'
+    ],
+    dependentClaimsSummary: 'Dependent claims specify sensor placement, analysis thresholds, and automated actuation rules.',
     filingDate: "2021-02-28",
     grantDate: "2023-03-15",
     url: "https://worldwide.espacenet.com/patent/EP4023456",
@@ -356,6 +378,11 @@ const mockWIPOPatents: Patent[] = [
     abstract: "An integrated solution for capturing CO2 from industrial exhaust streams and converting it into valuable chemical feedstocks. The invention employs novel catalyst systems and process optimization to achieve economically viable carbon recycling.",
     inventors: ["Dr. Yuki Tanaka", "Dr. Priya Sharma", "Dr. Ahmed Hassan"],
     assignee: "International Climate Solutions Inc.",
+    independentClaims: [
+      'A carbon capture system configured to capture carbon dioxide from an industrial exhaust stream.',
+      'A utilization process producing chemical feedstock from captured carbon dioxide.'
+    ],
+    dependentClaimsSummary: 'Dependent claims narrow catalyst composition, pressure ranges, and downstream conversion steps.',
     filingDate: "2022-06-15",
     grantDate: "2023-12-28",
     url: "https://patentscope.wipo.int/search/WO2023123456",

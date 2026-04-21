@@ -69,6 +69,8 @@ export interface PatentReference {
     title: string;
     assignee: string;
     abstract: string;
+    independentClaims?: string[];
+    dependentClaimsSummary?: string;
     filingDate: string;
     grantDate: string;
     inventors: string[];
