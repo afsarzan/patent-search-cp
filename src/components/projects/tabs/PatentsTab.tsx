@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2, ExternalLink, CheckCheck } from 'lucide-react';
 import { PatentReference, Collection, PatentReviewStatus, PatentLegalStatus } from '@/types/projects';
+import { PatentDetailModal, PatentDetailData } from '@/components/projects/PatentDetailModal';
 import {
   bulkUpdatePatentReviewStatus,
   deletePinnedPatent,
@@ -79,6 +80,7 @@ export const PatentsTab = ({
   const [bulkStatusReason, setBulkStatusReason] = useState('');
   const [statusDraftByPatent, setStatusDraftByPatent] = useState<Record<number, PatentReviewStatus>>({});
   const [reasonDraftByPatent, setReasonDraftByPatent] = useState<Record<number, string>>({});
+  const [selectedDetailPatent, setSelectedDetailPatent] = useState<PatentDetailData | null>(null);
 
   const deletePatentMutation = useMutation({
     mutationFn: async (patentRefId: number) => deletePinnedPatent(projectId, patentRefId),
@@ -179,6 +181,22 @@ export const PatentsTab = ({
       const next = new Set(prev);
       filteredPatentIds.forEach((id) => next.add(id));
       return Array.from(next);
+    });
+  };
+
+  const openPatentDetails = (patent: PatentReference) => {
+    setSelectedDetailPatent({
+      patentNumber: patent.patentData.patentNumber,
+      title: patent.patentData.title,
+      assignee: patent.patentData.assignee,
+      abstract: patent.patentData.abstract,
+      filingDate: patent.patentData.filingDate,
+      grantDate: patent.patentData.grantDate,
+      provider: patent.patentData.provider,
+      url: patent.patentData.url,
+      legalStatus: patent.patentData.legalStatus,
+      independentClaims: patent.patentData.independentClaims,
+      dependentClaimsSummary: patent.patentData.dependentClaimsSummary,
     });
   };
 
@@ -305,6 +323,13 @@ export const PatentsTab = ({
                   <p className="text-sm text-muted-foreground mt-1">
                     {patent.patentData.assignee}
                   </p>
+                  <Button
+                    variant="link"
+                    className="h-auto p-0 text-xs"
+                    onClick={() => openPatentDetails(patent)}
+                  >
+                    View claims
+                  </Button>
                 </div>
 
                 <p className="text-xs text-muted-foreground line-clamp-2">
@@ -426,6 +451,12 @@ export const PatentsTab = ({
           </CardContent>
         </Card>
       )}
+
+      <PatentDetailModal
+        isOpen={selectedDetailPatent !== null}
+        onClose={() => setSelectedDetailPatent(null)}
+        patent={selectedDetailPatent}
+      />
     </div>
   );
 };

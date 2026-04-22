@@ -120,6 +120,10 @@ describe('projectRepository', () => {
         patentNumber: 'US1234567',
         title: 'Thermal management layer',
         abstract: 'A method for passive heat dissipation.',
+        independentClaims: [
+          'A thermal management layer configured to dissipate heat across a battery pack.',
+        ],
+        dependentClaimsSummary: 'Dependent claims narrow substrate composition and heat transfer routing.',
         inventors: ['Alice Smith'],
         assignee: 'HeatTech Labs',
         filingDate: '2021-05-20',
@@ -137,6 +141,8 @@ describe('projectRepository', () => {
     expect(detail.pinnedPatents).toHaveLength(1);
     expect(detail.collections).toHaveLength(1);
     expect(detail.pinnedPatents[0].patentData.url).toContain('US1234567');
+    expect(detail.pinnedPatents[0].patentData.independentClaims).toHaveLength(1);
+    expect(detail.pinnedPatents[0].patentData.dependentClaimsSummary).toContain('Dependent claims narrow');
     expect(detail.pinnedPatents[0].patentData.legalStatus).toBe('GRANTED');
     expect(detail.pinnedPatents[0].collectionIds).toContain(collection.id);
     expect(detail.pinnedPatents[0].status).toBe('TO_REVIEW');

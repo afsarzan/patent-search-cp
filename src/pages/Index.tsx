@@ -245,7 +245,7 @@ const Index = () => {
           {isLoading ? (
             <LoadingSkeleton />
           ) : patents.length > 0 ? (
-            <PatentTable patents={patents} total={total} />
+            <PatentTable patents={patents} total={total} parsedQuery={currentParsedQuery} />
           ) : (
             <EmptyState hasSearched={hasSearched} error={error} />
           )}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Patent, getPatentFamilyId } from '@/lib/patentApi';
+import { Patent, ParsedPatentQuery, getPatentFamilyId } from '@/lib/patentApi';
 import { ExternalLink, Users, Building2, Calendar, Pin, ChevronDown, ChevronRight, GitBranch, ShieldAlert } from 'lucide-react';
 import {
   Table,
@@ -13,10 +13,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PinPatentModal } from '@/components/projects/PinPatentModal';
 import { PatentLegalStatus } from '@/types/projects';
+import { PatentDetailModal, PatentDetailData, extractHighlightTerms } from '@/components/projects/PatentDetailModal';
 
 interface PatentTableProps {
   patents: Patent[];
   total: number;
+  parsedQuery?: ParsedPatentQuery;
 }
 
 type PatentTableViewMode = 'flat' | 'family';
@@ -27,10 +29,28 @@ interface FamilyGroup {
   representative: Patent;
 }
 
-export function PatentTable({ patents, total }: PatentTableProps) {
+function mapPatentToDetailData(patent: Patent): PatentDetailData {
+  return {
+    patentNumber: patent.patentNumber,
+    title: patent.title,
+    assignee: patent.assignee,
+    abstract: patent.abstract,
+    filingDate: patent.filingDate,
+    grantDate: patent.grantDate,
+    provider: patent.provider,
+    url: patent.url,
+    legalStatus: patent.legalStatus,
+    independentClaims: patent.independentClaims,
+    dependentClaimsSummary: patent.dependentClaimsSummary,
+  };
+}
+
+export function PatentTable({ patents, total, parsedQuery }: PatentTableProps) {
   const [selectedPatent, setSelectedPatent] = useState<Patent | null>(null);
+  const [selectedDetailPatent, setSelectedDetailPatent] = useState<Patent | null>(null);
   const [viewMode, setViewMode] = useState<PatentTableViewMode>('flat');
   const [expandedFamilies, setExpandedFamilies] = useState<Record<string, boolean>>({});
+  const highlightTerms = useMemo(() => extractHighlightTerms(parsedQuery?.raw), [parsedQuery?.raw]);
 
   const familyGroups = useMemo<FamilyGroup[]>(() => {
     const groups = new Map<string, Patent[]>();
@@ -199,6 +219,14 @@ export function PatentTable({ patents, total }: PatentTableProps) {
             variant="outline"
             size="sm"
             className="gap-1"
+            onClick={() => setSelectedDetailPatent(patent)}
+          >
+            Details
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1"
             onClick={() => setSelectedPatent(patent)}
           >
             <Pin className="h-3.5 w-3.5" />
@@ -316,6 +344,13 @@ export function PatentTable({ patents, total }: PatentTableProps) {
         isOpen={selectedPatent !== null}
         onClose={() => setSelectedPatent(null)}
         patent={selectedPatent}
+      />
+
+      <PatentDetailModal
+        isOpen={selectedDetailPatent !== null}
+        onClose={() => setSelectedDetailPatent(null)}
+        patent={selectedDetailPatent ? mapPatentToDetailData(selectedDetailPatent) : null}
+        highlightTerms={highlightTerms}
       />
     </div>
   );
