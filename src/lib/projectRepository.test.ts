@@ -11,6 +11,8 @@ import {
   updateProject,
   pinPatentToProject,
   saveSearchToProject,
+  triggerSavedSearchAlert,
+  updateSavedSearchWatchFrequency,
   updatePatentReviewStatus,
 } from './projectRepository';
 
@@ -91,6 +93,73 @@ describe('projectRepository', () => {
     });
     expect(detail.searches[0].earliestFilingYear).toBe(2020);
     expect(detail.searches[0].latestFilingYear).toBe(2022);
+  });
+
+  it('stores and updates watchlist frequency metadata', async () => {
+    const project = await createProject({ name: 'Watchlist Project' });
+
+    const saved = await saveSearchToProject(project.id, {
+      queryString: 'solid state battery',
+      providers: ['USPTO'],
+      cachedResults: [
+        {
+          id: 'watch-1',
+          patentNumber: 'US-WATCH-1',
+          title: 'Watchlist baseline patent',
+          abstract: 'Baseline document for watchlist test.',
+          inventors: ['Alex Watcher'],
+          assignee: 'Example Assignee',
+          filingDate: '2021-01-01',
+          grantDate: '2023-01-01',
+          url: 'https://patents.google.com/patent/USWATCH1',
+          provider: 'USPTO',
+        },
+      ],
+      watchFrequency: 'WEEKLY',
+    });
+
+    expect(saved.watchFrequency).toBe('WEEKLY');
+
+    await updateSavedSearchWatchFrequency(project.id, saved.id, {
+      watchFrequency: 'DAILY',
+    });
+
+    const detail = await getProjectDetail(project.id);
+    expect(detail.searches).toHaveLength(1);
+    expect(detail.searches[0].watchFrequency).toBe('DAILY');
+  });
+
+  it('simulates manual alert run and updates new-since-last-run metadata', async () => {
+    const project = await createProject({ name: 'Alert Trigger Project' });
+
+    const saved = await saveSearchToProject(project.id, {
+      queryString: 'electrolyte stability',
+      providers: ['USPTO'],
+      cachedResults: [
+        {
+          id: 'alert-1',
+          patentNumber: 'US-ALERT-1',
+          title: 'Alert baseline patent',
+          abstract: 'Baseline document for alert trigger test.',
+          inventors: ['Casey Alert'],
+          assignee: 'Example Assignee',
+          filingDate: '2020-02-02',
+          grantDate: '2023-02-02',
+          url: 'https://patents.google.com/patent/USALERT1',
+          provider: 'USPTO',
+        },
+      ],
+      watchFrequency: 'DAILY',
+    });
+
+    const triggered = await triggerSavedSearchAlert(project.id, saved.id);
+    expect(triggered.search.alertRunCount).toBe(1);
+    expect(triggered.search.lastAlertRunAt).toBeTruthy();
+    expect(triggered.search.newSinceLastRun).toBe(triggered.simulatedNewCount);
+
+    const detail = await getProjectDetail(project.id);
+    expect(detail.searches[0].alertRunCount).toBe(1);
+    expect(detail.searches[0].newSinceLastRun).toBe(triggered.simulatedNewCount);
   });
 
   it('persists comments and collaborators in project detail', async () => {

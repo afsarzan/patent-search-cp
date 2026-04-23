@@ -33,6 +33,11 @@ export interface SavedSearch {
   latestFilingYear?: number;
   runAt: string;
   createdAt: string;
+  watchFrequency?: 'NONE' | 'DAILY' | 'WEEKLY';
+  lastAlertRunAt?: string;
+  alertRunCount?: number;
+  lastAlertResultCount?: number;
+  newSinceLastRun?: number;
   notes?: string;
   // Computed for UI
   cachedStats?: {

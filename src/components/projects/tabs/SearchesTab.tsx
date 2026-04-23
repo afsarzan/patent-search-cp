@@ -13,7 +13,11 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { deleteSavedSearch } from '@/lib/projectRepository';
+import {
+  deleteSavedSearch,
+  triggerSavedSearchAlert,
+  updateSavedSearchWatchFrequency,
+} from '@/lib/projectRepository';
 
 interface SearchesTabProps {
   projectId: number;
@@ -31,6 +35,26 @@ export const SearchesTab = ({
   onCompare,
 }: SearchesTabProps) => {
   const queryClient = useQueryClient();
+
+  const watchFrequencyMutation = useMutation({
+    mutationFn: async (params: { searchId: number; watchFrequency: 'NONE' | 'DAILY' | 'WEEKLY' }) =>
+      updateSavedSearchWatchFrequency(projectId, params.searchId, {
+        watchFrequency: params.watchFrequency,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+
+  const triggerAlertMutation = useMutation({
+    mutationFn: async (searchId: number) => triggerSavedSearchAlert(projectId, searchId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+
   const deleteSearchMutation = useMutation({
     mutationFn: async (searchId: number) => deleteSavedSearch(projectId, searchId),
     onSuccess: () => {
@@ -87,7 +111,8 @@ export const SearchesTab = ({
               <TableHead>Providers</TableHead>
               <TableHead>Results</TableHead>
               <TableHead>Run Date</TableHead>
-              <TableHead className="w-24 text-right">Actions</TableHead>
+              <TableHead>Watchlist</TableHead>
+              <TableHead className="w-32 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -119,13 +144,50 @@ export const SearchesTab = ({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className="font-medium">{search.resultCount}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{search.resultCount}</span>
+                    {(search.newSinceLastRun || 0) > 0 && (
+                      <Badge variant="default" className="text-[10px] uppercase tracking-wide">
+                        +{search.newSinceLastRun} new
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {new Date(search.runAt).toLocaleDateString()}
                 </TableCell>
+                <TableCell>
+                  <div className="space-y-2">
+                    <select
+                      className="h-8 rounded border bg-background px-2 text-xs"
+                      value={search.watchFrequency || 'NONE'}
+                      onChange={(event) =>
+                        watchFrequencyMutation.mutate({
+                          searchId: search.id,
+                          watchFrequency: event.target.value as 'NONE' | 'DAILY' | 'WEEKLY',
+                        })
+                      }
+                    >
+                      <option value="NONE">No alerts</option>
+                      <option value="DAILY">Daily</option>
+                      <option value="WEEKLY">Weekly</option>
+                    </select>
+                    {search.lastAlertRunAt && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Last alert: {new Date(search.lastAlertRunAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="flex justify-end gap-2">
-                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => triggerAlertMutation.mutate(search.id)}
+                    disabled={triggerAlertMutation.isPending}
+                    title="Run alert now"
+                  >
                     <Play className="h-4 w-4" />
                   </Button>
                   <Button

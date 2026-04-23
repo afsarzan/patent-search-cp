@@ -51,6 +51,11 @@ interface SaveSearchInput {
   cachedResults: Patent[];
   cachedStats?: Record<string, unknown>;
   notes?: string;
+  watchFrequency?: 'NONE' | 'DAILY' | 'WEEKLY';
+}
+
+interface UpdateSavedSearchWatchFrequencyInput {
+  watchFrequency: 'NONE' | 'DAILY' | 'WEEKLY';
 }
 
 interface AddCommentInput {
@@ -134,6 +139,15 @@ function readStore(): ProjectStore {
 
   try {
     const parsed = JSON.parse(raw) as ProjectStore;
+    const hydratedSearches = (parsed.searches || []).map((search) => ({
+      ...search,
+      watchFrequency:
+        search.watchFrequency === 'DAILY' || search.watchFrequency === 'WEEKLY'
+          ? search.watchFrequency
+          : 'NONE',
+      alertRunCount: typeof search.alertRunCount === 'number' ? search.alertRunCount : 0,
+      newSinceLastRun: typeof search.newSinceLastRun === 'number' ? search.newSinceLastRun : 0,
+    }));
     const hydratedPatents = (parsed.patents || []).map((patent) => ({
       ...patent,
       status: isPatentReviewStatus(patent.status) ? patent.status : 'TO_REVIEW',
@@ -145,6 +159,7 @@ function readStore(): ProjectStore {
     return {
       ...createInitialState(),
       ...parsed,
+      searches: hydratedSearches,
       patents: hydratedPatents,
     };
   } catch {
@@ -342,6 +357,11 @@ export async function saveSearchToProject(projectId: number, input: SaveSearchIn
       latestFilingYear: filingYears.length ? Math.max(...filingYears) : undefined,
       runAt: timestamp,
       createdAt: timestamp,
+      watchFrequency: input.watchFrequency || 'NONE',
+      lastAlertRunAt: undefined,
+      alertRunCount: 0,
+      lastAlertResultCount: input.cachedResults.length,
+      newSinceLastRun: 0,
       notes: input.notes,
       cachedStats: {
         topAssignees: [],
@@ -370,6 +390,53 @@ export async function deleteSavedSearch(projectId: number, searchId: number) {
     if (project) project.updatedAt = nowIso();
 
     return { success: true };
+  });
+}
+
+export async function updateSavedSearchWatchFrequency(
+  projectId: number,
+  searchId: number,
+  input: UpdateSavedSearchWatchFrequencyInput
+) {
+  return withStore((store) => {
+    const search = store.searches.find(
+      (entry) => entry.projectId === projectId && entry.id === searchId
+    );
+    if (!search) throw new Error('Saved search not found');
+
+    search.watchFrequency = input.watchFrequency;
+
+    const project = store.projects.find((entry) => entry.id === projectId);
+    if (project) project.updatedAt = nowIso();
+
+    return search;
+  });
+}
+
+export async function triggerSavedSearchAlert(projectId: number, searchId: number) {
+  return withStore((store) => {
+    const search = store.searches.find(
+      (entry) => entry.projectId === projectId && entry.id === searchId
+    );
+    if (!search) throw new Error('Saved search not found');
+
+    const runCount = (search.alertRunCount || 0) + 1;
+    const simulatedNewCount = (search.id + runCount) % 4;
+    const timestamp = nowIso();
+
+    search.alertRunCount = runCount;
+    search.lastAlertRunAt = timestamp;
+    search.newSinceLastRun = simulatedNewCount;
+    search.lastAlertResultCount = search.resultCount + simulatedNewCount;
+    search.runAt = timestamp;
+
+    const project = store.projects.find((entry) => entry.id === projectId);
+    if (project) project.updatedAt = timestamp;
+
+    return {
+      search,
+      simulatedNewCount,
+    };
   });
 }
 

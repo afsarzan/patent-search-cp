@@ -36,6 +36,7 @@ export const SaveSearchModal = ({
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDescription, setNewProjectDescription] = useState('');
   const [notes, setNotes] = useState('');
+  const [watchFrequency, setWatchFrequency] = useState<'NONE' | 'DAILY' | 'WEEKLY'>('NONE');
 
   const { data: projectsData } = useQuery<{ projects: Project[] }>({
     queryKey: ['projects'],
@@ -71,6 +72,7 @@ export const SaveSearchModal = ({
           resultCount: currentSearch.results.length,
         },
         notes: notes || undefined,
+        watchFrequency,
       });
     },
     onSuccess: () => {
@@ -82,6 +84,7 @@ export const SaveSearchModal = ({
       setNewProjectName('');
       setNewProjectDescription('');
       setNotes('');
+      setWatchFrequency('NONE');
     },
   });
 
@@ -167,6 +170,20 @@ export const SaveSearchModal = ({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="watch-frequency">Alert frequency</Label>
+            <Select value={watchFrequency} onValueChange={(value) => setWatchFrequency(value as 'NONE' | 'DAILY' | 'WEEKLY')}>
+              <SelectTrigger id="watch-frequency">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="NONE">No alert schedule</SelectItem>
+                <SelectItem value="DAILY">Daily</SelectItem>
+                <SelectItem value="WEEKLY">Weekly</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Actions */}
