@@ -158,6 +158,17 @@ function readStore(): ProjectStore {
     }));
     return {
       ...createInitialState(),
+      const hydratedSearches = (parsed.searches || []).map((search) => ({
+        ...search,
+        watchFrequency: search.watchFrequency || 'NONE',
+        lastAlertRunAt: search.lastAlertRunAt || undefined,
+        alertRunCount: search.alertRunCount || 0,
+        lastAlertResultCount:
+          typeof search.lastAlertResultCount === 'number'
+            ? search.lastAlertResultCount
+            : search.resultCount,
+        newSinceLastRun: typeof search.newSinceLastRun === 'number' ? search.newSinceLastRun : 0,
+      }));
       ...parsed,
       searches: hydratedSearches,
       patents: hydratedPatents,
@@ -165,6 +176,7 @@ function readStore(): ProjectStore {
   } catch {
     const initial = createInitialState();
     writeStore(initial);
+        searches: hydratedSearches,
     return initial;
   }
 }
