@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Trash2, Play, BarChart3 } from 'lucide-react';
+import { Trash2, Play, BarChart3, Download } from 'lucide-react';
 import { SavedSearch } from '@/types/projects';
 import {
   Table,
@@ -17,7 +17,9 @@ import {
   deleteSavedSearch,
   triggerSavedSearchAlert,
   updateSavedSearchWatchFrequency,
+  getSearchForExport,
 } from '@/lib/projectRepository';
+import { exportSearchToCSV, exportSearchToJSON, downloadFile } from '@/lib/exporters';
 
 interface SearchesTabProps {
   projectId: number;
@@ -60,6 +62,22 @@ export const SearchesTab = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+
+  const exportSearchMutation = useMutation({
+    mutationFn: async (params: { searchId: number; format: 'csv' | 'json' }) => {
+      const search = await getSearchForExport(projectId, params.searchId);
+      const exportData = params.format === 'csv' 
+        ? exportSearchToCSV(search, [])
+        : exportSearchToJSON(search, []);
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `search-export-${search.id}-${timestamp}.${params.format}`;
+      const mimeType = params.format === 'csv' ? 'text/csv' : 'application/json';
+      
+      downloadFile(exportData, filename, mimeType);
+      return { success: true };
     },
   });
 
@@ -189,6 +207,26 @@ export const SearchesTab = ({
                     title="Run alert now"
                   >
                     <Play className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => exportSearchMutation.mutate({ searchId: search.id, format: 'csv' })}
+                    disabled={exportSearchMutation.isPending}
+                    title="Export as CSV"
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => exportSearchMutation.mutate({ searchId: search.id, format: 'json' })}
+                    disabled={exportSearchMutation.isPending}
+                    title="Export as JSON"
+                  >
+                    <code className="text-[10px]">JSON</code>
                   </Button>
                   <Button
                     size="sm"

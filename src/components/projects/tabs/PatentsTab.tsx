@@ -14,14 +14,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, ExternalLink, CheckCheck } from 'lucide-react';
+import { Trash2, ExternalLink, CheckCheck, Download } from 'lucide-react';
 import { PatentReference, Collection, PatentReviewStatus, PatentLegalStatus } from '@/types/projects';
 import { PatentDetailModal, PatentDetailData } from '@/components/projects/PatentDetailModal';
 import {
   bulkUpdatePatentReviewStatus,
   deletePinnedPatent,
   updatePatentReviewStatus,
+  getPatentsForExport,
 } from '@/lib/projectRepository';
+import { exportPatentsToCSV, exportPatentsToJSON, downloadFile } from '@/lib/exporters';
 
 interface PatentsTabProps {
   projectId: number;
@@ -116,6 +118,22 @@ export const PatentsTab = ({
       setBulkStatusReason('');
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+    },
+  });
+
+  const exportPatentsMutation = useMutation({
+    mutationFn: async (format: 'csv' | 'json') => {
+      const allPatents = await getPatentsForExport(projectId);
+      const exportData = format === 'csv'
+        ? exportPatentsToCSV(allPatents)
+        : exportPatentsToJSON(allPatents);
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `patents-export-${timestamp}.${format}`;
+      const mimeType = format === 'csv' ? 'text/csv' : 'application/json';
+
+      downloadFile(exportData, filename, mimeType);
+      return { success: true };
     },
   });
 
@@ -293,6 +311,26 @@ export const PatentsTab = ({
               <CheckCheck className="h-4 w-4" />
               Apply To Selected
             </Button>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={patents.length === 0 || exportPatentsMutation.isPending}
+                onClick={() => exportPatentsMutation.mutate('csv')}
+              >
+                <Download className="h-4 w-4" />
+                CSV
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={patents.length === 0 || exportPatentsMutation.isPending}
+                onClick={() => exportPatentsMutation.mutate('json')}
+              >
+                <code className="text-xs">JSON</code>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -428,6 +466,16 @@ export const PatentsTab = ({
                       <ExternalLink className="h-3 w-3" />
                       View
                     </a>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    onClick={() => exportPatentsMutation.mutate('csv')}
+                    disabled={exportPatentsMutation.isPending}
+                    title="Export as CSV"
+                  >
+                    <Download className="h-4 w-4" />
                   </Button>
                   <Button
                     size="sm"

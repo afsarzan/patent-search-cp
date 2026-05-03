@@ -825,6 +825,23 @@ export async function compareSavedSearches(
   });
 }
 
+export async function getSearchForExport(projectId: number, searchId: number) {
+  return withStore((store) => {
+    const search = store.searches.find(
+      (entry) => entry.projectId === projectId && entry.id === searchId
+    );
+    if (!search) throw new Error('Saved search not found');
+    return search;
+  });
+}
+
+export async function getPatentsForExport(projectId: number) {
+  return withStore((store) => {
+    const patents = store.patents.filter((entry) => entry.projectId === projectId);
+    return patents;
+  });
+}
+
 export function __resetProjectStoreForTests() {
   if (typeof window !== 'undefined' && window.localStorage) {
     window.localStorage.removeItem(STORAGE_KEY);
