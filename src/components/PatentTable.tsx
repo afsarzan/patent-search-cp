@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { PinPatentModal } from '@/components/projects/PinPatentModal';
 import { PatentLegalStatus } from '@/types/projects';
 import { PatentDetailModal, PatentDetailData, extractHighlightTerms } from '@/components/projects/PatentDetailModal';
+import { exportPatentsAsCSV, exportPatentsAsJSON, ExportMetadata } from '@/lib/exporters';
 
 interface PatentTableProps {
   patents: Patent[];
@@ -268,6 +269,34 @@ export function PatentTable({ patents, total, parsedQuery }: PatentTableProps) {
               ? `${familyGroups.length} families`
               : `Showing ${patents.length} of ${total.toLocaleString()}`}
           </Badge>
+          <div className="flex items-center gap-2 ml-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                exportPatentsAsJSON(patents, {
+                  query: parsedQuery?.raw,
+                  total,
+                  runDate: new Date().toISOString(),
+                } as ExportMetadata, 'patents-export.json')
+              }
+            >
+              Export JSON
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() =>
+                exportPatentsAsCSV(patents, {
+                  query: parsedQuery?.raw,
+                  total,
+                  runDate: new Date().toISOString(),
+                } as ExportMetadata, 'patents-export.csv')
+              }
+            >
+              Export CSV
+            </Button>
+          </div>
         </div>
       </div>
 

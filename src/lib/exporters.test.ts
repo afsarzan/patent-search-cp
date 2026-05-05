@@ -1,3 +1,38 @@
+import { generatePatentsCSV, generatePatentsJSON } from './exporters';
+import { Patent } from './patentApi';
+
+const samplePatent: Patent = {
+  id: '1',
+  patentNumber: 'US-123',
+  title: 'A useful widget',
+  assignee: 'Acme Corp',
+  inventors: ['Alice', 'Bob'],
+  abstract: 'An abstract, with comma',
+  filingDate: '2020-01-01',
+  grantDate: '2021-01-01',
+  provider: 'USPO',
+  url: 'https://example.com/patent/US-123',
+  legalStatus: 'GRANTED',
+  isFamilyRepresentative: false,
+};
+
+describe('exporters', () => {
+  test('generatePatentsJSON includes metadata and patents', () => {
+    const json = generatePatentsJSON([samplePatent], { query: 'widget', total: 1, runDate: '2026-05-04' });
+    const parsed = JSON.parse(json);
+    expect(parsed.metadata.query).toBe('widget');
+    expect(parsed.patents).toHaveLength(1);
+    expect(parsed.patents[0].patentNumber).toBe('US-123');
+  });
+
+  test('generatePatentsCSV escapes values and includes header', () => {
+    const csv = generatePatentsCSV([samplePatent], { query: 'widget', total: 1 });
+    expect(csv).toContain('patentNumber,title,assignee,inventors,abstract');
+    expect(csv).toContain('US-123');
+    // abstract contains comma and should be quoted
+    expect(csv).toContain('"An abstract, with comma"');
+  });
+});
 import { describe, it, expect } from 'vitest';
 import {
   exportSearchToCSV,

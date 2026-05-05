@@ -1,3 +1,102 @@
+import { Patent } from '@/lib/patentApi';
+
+export interface ExportMetadata {
+  query?: string;
+  total?: number;
+  runDate?: string; // ISO
+  provider?: string;
+  notes?: string;
+}
+
+export function generatePatentsJSON(patents: Patent[], metadata?: ExportMetadata) {
+  return JSON.stringify({ metadata: metadata || {}, patents }, null, 2);
+}
+
+function escapeCsvValue(value: any) {
+  if (value === null || value === undefined) return '';
+  const str = typeof value === 'string' ? value : String(value);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+export function generatePatentsCSV(patents: Patent[], metadata?: ExportMetadata) {
+  const headers = [
+    'patentNumber',
+    'title',
+    'assignee',
+    'inventors',
+    'abstract',
+    'filingDate',
+    'grantDate',
+    'provider',
+    'url',
+    'legalStatus',
+  ];
+
+  const rows = patents.map((p) => [
+    p.patentNumber,
+    p.title,
+    p.assignee,
+    (p.inventors || []).join('; '),
+    p.abstract,
+    p.filingDate,
+    p.grantDate,
+    p.provider,
+    p.url,
+    p.legalStatus || '',
+  ]);
+
+  const lines: string[] = [];
+
+  // optional metadata header block
+  if (metadata) {
+    lines.push(`# Export run: ${metadata.runDate || new Date().toISOString()}`);
+    if (metadata.query) lines.push(`# Query: ${metadata.query}`);
+    if (typeof metadata.total === 'number') lines.push(`# Total: ${metadata.total}`);
+    if (metadata.provider) lines.push(`# Provider: ${metadata.provider}`);
+    if (metadata.notes) lines.push(`# Notes: ${metadata.notes}`);
+    lines.push('');
+  }
+
+  lines.push(headers.join(','));
+  rows.forEach((row) => {
+    lines.push(row.map(escapeCsvValue).join(','));
+  });
+
+  return lines.join('\n');
+}
+
+function downloadBlob(filename: string, content: string, mime = 'text/plain;charset=utf-8') {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function exportPatentsAsJSON(patents: Patent[], metadata?: ExportMetadata, filename = 'patents-export.json') {
+  const content = generatePatentsJSON(patents, metadata);
+  downloadBlob(filename, content, 'application/json;charset=utf-8');
+}
+
+export function exportPatentsAsCSV(patents: Patent[], metadata?: ExportMetadata, filename = 'patents-export.csv') {
+  const content = generatePatentsCSV(patents, metadata);
+  downloadBlob(filename, content, 'text/csv;charset=utf-8');
+}
+
+export default {
+  generatePatentsCSV,
+  generatePatentsJSON,
+  exportPatentsAsCSV,
+  exportPatentsAsJSON,
+};
 import { SavedSearch, PatentReference } from '@/types/projects';
 import { Patent } from './patentApi';
 
