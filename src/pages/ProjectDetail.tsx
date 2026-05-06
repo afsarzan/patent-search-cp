@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download, Loader2 } from 'lucide-react';
 import { Project } from '@/types/projects';
 import { SearchesTab } from '@/components/projects/tabs/SearchesTab';
 import { PatentsTab } from '@/components/projects/tabs/PatentsTab';
@@ -13,6 +13,7 @@ import { TeamTab } from '@/components/projects/tabs/TeamTab';
 import { SearchComparisonView } from '@/components/projects/SearchComparisonView';
 import { ProjectSettingsModal } from '@/components/projects/ProjectSettingsModal';
 import { getProjectDetail } from '@/lib/projectRepository';
+import { generateProjectPDF } from '@/lib/projectReportGenerator';
 import { Header } from '@/components/Header';
 
 export const ProjectDetailPage = () => {
@@ -21,6 +22,7 @@ export const ProjectDetailPage = () => {
   const [selectedSearchIds, setSelectedSearchIds] = useState<number[]>([]);
   const [comparisonSearchIds, setComparisonSearchIds] = useState<number[] | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const projectIdNum = projectId ? parseInt(projectId, 10) : null;
 
@@ -108,6 +110,33 @@ export const ProjectDetailPage = () => {
             </div>
             <div className="flex gap-2">
               <Button variant="outline">Share</Button>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setIsExporting(true);
+                  try {
+                    await generateProjectPDF({
+                      project,
+                      searches: projectData?.searches || [],
+                      patents: projectData?.pinnedPatents || [],
+                      comments: projectData?.comments || [],
+                    });
+                  } catch (err) {
+                    console.error('PDF export failed:', err);
+                  } finally {
+                    setIsExporting(false);
+                  }
+                }}
+                disabled={isExporting}
+                className="gap-2"
+              >
+                {isExporting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="h-4 w-4" />
+                )}
+                {isExporting ? 'Exporting...' : 'Export PDF'}
+              </Button>
               <Button variant="outline" onClick={() => setShowSettingsModal(true)}>
                 Settings
               </Button>
