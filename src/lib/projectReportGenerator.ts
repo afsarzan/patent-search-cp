@@ -2,7 +2,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Project, SavedSearch, PatentReference, Comment } from '@/types/projects';
 
-interface ProjectReportData {
+export interface ProjectReportData {
   project: Project;
   searches: SavedSearch[];
   patents: PatentReference[];

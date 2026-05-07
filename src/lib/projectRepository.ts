@@ -10,6 +10,18 @@ import {
   SearchComparisonResponse,
   SavedSearch,
   User,
+import { Patent, PatentProvider } from '@/lib/patentApi';
+import {
+  Comment,
+  Collection,
+  isPatentReviewStatus,
+  PatentReviewStatus,
+  PatentReference,
+  Project,
+  ProjectShare,
+  SavedSearch,
+  SearchComparisonResponse,
+  User,
 } from '@/types/projects';
 
 interface ProjectStore {
@@ -49,7 +61,12 @@ interface SaveSearchInput {
   providers: PatentProvider[];
   filters?: Record<string, unknown>;
   cachedResults: Patent[];
-  cachedStats?: Record<string, unknown>;
+  cachedStats?: {
+    topAssignees?: Array<{ name: string; count: number }>;
+    filingTrend?: Array<{ year: number; count: number }>;
+    technologyDistribution?: Array<{ class: string; count: number }>;
+    [key: string]: unknown;
+  };
   notes?: string;
   watchFrequency?: 'NONE' | 'DAILY' | 'WEEKLY';
 }
@@ -125,68 +142,49 @@ function createInitialState(): ProjectStore {
   };
 }
 
+function cloneInitialState(): ProjectStore {
+  return structuredClone(createInitialState());
+}
+
+function writeStore(store: ProjectStore) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+
 function readStore(): ProjectStore {
   if (typeof window === 'undefined' || !window.localStorage) {
-    return createInitialState();
+    return cloneInitialState();
   }
 
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (!raw) {
-    const initial = createInitialState();
+    const initial = cloneInitialState();
     writeStore(initial);
     return initial;
   }
 
   try {
-    const parsed = JSON.parse(raw) as ProjectStore;
-    const hydratedSearches = (parsed.searches || []).map((search) => ({
-      ...search,
-      watchFrequency:
-        search.watchFrequency === 'DAILY' || search.watchFrequency === 'WEEKLY'
-          ? search.watchFrequency
-          : 'NONE',
-      alertRunCount: typeof search.alertRunCount === 'number' ? search.alertRunCount : 0,
-      newSinceLastRun: typeof search.newSinceLastRun === 'number' ? search.newSinceLastRun : 0,
-    }));
-    const hydratedPatents = (parsed.patents || []).map((patent) => ({
-      ...patent,
-      status: isPatentReviewStatus(patent.status) ? patent.status : 'TO_REVIEW',
-      statusReason:
-        typeof patent.statusReason === 'string' && patent.statusReason.trim().length > 0
-          ? patent.statusReason.trim()
-          : undefined,
-    }));
+    const parsed = JSON.parse(raw) as Partial<ProjectStore>;
     return {
-      ...createInitialState(),
-      const hydratedSearches = (parsed.searches || []).map((search) => ({
-        ...search,
-        watchFrequency: search.watchFrequency || 'NONE',
-        lastAlertRunAt: search.lastAlertRunAt || undefined,
-        alertRunCount: search.alertRunCount || 0,
-        lastAlertResultCount:
-          typeof search.lastAlertResultCount === 'number'
-            ? search.lastAlertResultCount
-            : search.resultCount,
-        newSinceLastRun: typeof search.newSinceLastRun === 'number' ? search.newSinceLastRun : 0,
-      }));
+      ...cloneInitialState(),
       ...parsed,
-      searches: hydratedSearches,
-      patents: hydratedPatents,
+      searches: (parsed.searches || []).map(hydrateSearch),
+      patents: (parsed.patents || []).map(hydratePatentReference),
+      projects: parsed.projects || [],
+      collections: parsed.collections || [],
+      comments: parsed.comments || [],
+      shares: parsed.shares || [],
+      users: parsed.users || cloneInitialState().users,
+      counters: {
+        ...cloneInitialState().counters,
+        ...(parsed.counters || {}),
+      },
     };
   } catch {
-    const initial = createInitialState();
+    const initial = cloneInitialState();
     writeStore(initial);
-        searches: hydratedSearches,
     return initial;
   }
-}
-
-function writeStore(store: ProjectStore) {
-  if (typeof window === 'undefined' || !window.localStorage) {
-    return;
-  }
-
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
 }
 
 function withStore<T>(updater: (store: ProjectStore) => T): T {
@@ -200,6 +198,12 @@ function nextId(store: ProjectStore, counter: keyof ProjectStore['counters']) {
   const id = store.counters[counter];
   store.counters[counter] += 1;
   return id;
+}
+
+function getProjectOrThrow(store: ProjectStore, projectId: number) {
+  const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
+  if (!project) throw new Error('Project not found');
+  return project;
 }
 
 function computeProjectStats(store: ProjectStore, project: Project): Project {
@@ -217,24 +221,88 @@ function getOrCreateUserByEmail(store: ProjectStore, email: string) {
   const existing = store.users.find((user) => user.email.toLowerCase() === normalized);
   if (existing) return existing;
 
-  const newUser: User = {
+  const user: User = {
     id: nextId(store, 'user'),
     email: normalized,
     name: normalized.split('@')[0] || 'Teammate',
     createdAt: nowIso(),
   };
-  store.users.push(newUser);
-  return newUser;
+  store.users.push(user);
+  return user;
+}
+
+function normalizeWatchFrequency(value: unknown): 'NONE' | 'DAILY' | 'WEEKLY' {
+  return value === 'DAILY' || value === 'WEEKLY' ? value : 'NONE';
+}
+
+function hydrateSearch(search: SavedSearch): SavedSearch {
+  return {
+    ...search,
+    watchFrequency: normalizeWatchFrequency(search.watchFrequency),
+    alertRunCount: typeof search.alertRunCount === 'number' ? search.alertRunCount : 0,
+    newSinceLastRun: typeof search.newSinceLastRun === 'number' ? search.newSinceLastRun : 0,
+    lastAlertResultCount:
+      typeof search.lastAlertResultCount === 'number' ? search.lastAlertResultCount : search.resultCount,
+  };
+}
+
+function hydratePatentReference(patent: PatentReference): PatentReference {
+  return {
+    ...patent,
+    status: isPatentReviewStatus(patent.status) ? patent.status : 'TO_REVIEW',
+    statusReason:
+      typeof patent.statusReason === 'string' && patent.statusReason.trim().length > 0
+        ? patent.statusReason.trim()
+        : undefined,
+    collectionIds: patent.collectionIds || [],
+  };
+}
+
+function projectDetailPayload(store: ProjectStore, projectId: number) {
+  const project = getProjectOrThrow(store, projectId);
+  const usersById = new Map(store.users.map((user) => [user.id, user]));
+
+  const searches = store.searches
+    .filter((search) => search.projectId === projectId)
+    .map(hydrateSearch)
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+
+  const pinnedPatents = store.patents
+    .filter((patent) => patent.projectId === projectId)
+    .map(hydratePatentReference)
+    .sort((a, b) => +new Date(b.pinnedAt) - +new Date(a.pinnedAt));
+
+  const collections = store.collections
+    .filter((collection) => collection.projectId === projectId)
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+
+  const comments = store.comments
+    .filter((comment) => comment.projectId === projectId)
+    .map((comment) => ({ ...comment, author: usersById.get(comment.authorId) }))
+    .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+
+  const shares = store.shares
+    .filter((share) => share.projectId === projectId)
+    .map((share) => ({ ...share, user: usersById.get(share.userId ?? -1) }))
+    .sort((a, b) => +new Date(a.grantedAt) - +new Date(b.grantedAt));
+
+  return {
+    project: computeProjectStats(store, project),
+    searches,
+    pinnedPatents,
+    collections,
+    comments,
+    shares,
+  };
 }
 
 export async function listProjects() {
-  const projects = withStore((store) =>
-    store.projects
+  return withStore((store) => ({
+    projects: store.projects
       .filter((project) => !project.archivedAt)
       .map((project) => computeProjectStats(store, project))
-      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt))
-  );
-  return { projects };
+      .sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)),
+  }));
 }
 
 export async function createProject(input: CreateProjectInput) {
@@ -252,16 +320,14 @@ export async function createProject(input: CreateProjectInput) {
     };
 
     store.projects.push(project);
-
-    const ownerShare: ProjectShare = {
+    store.shares.push({
       id: nextId(store, 'share'),
       projectId: project.id,
       userId: CURRENT_USER_ID,
       role: 'OWNER',
       grantedAt: timestamp,
-      user: store.users.find((u) => u.id === CURRENT_USER_ID),
-    };
-    store.shares.push(ownerShare);
+      user: store.users.find((user) => user.id === CURRENT_USER_ID),
+    });
 
     return project;
   });
@@ -269,17 +335,11 @@ export async function createProject(input: CreateProjectInput) {
 
 export async function updateProject(projectId: number, input: UpdateProjectInput) {
   return withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
-    if (!project) throw new Error('Project not found');
-
-    const nextName = input.name.trim();
-    if (!nextName) throw new Error('Project name is required');
-
-    project.name = nextName;
+    const project = getProjectOrThrow(store, projectId);
+    project.name = input.name.trim();
     project.description = input.description?.trim() || undefined;
     project.defaultProvider = input.defaultProvider;
     project.updatedAt = nowIso();
-
     return project;
   });
 }
@@ -298,8 +358,7 @@ export async function deleteProject(projectId: number) {
 
 export async function archiveProject(projectId: number) {
   return withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId);
-    if (!project) throw new Error('Project not found');
+    const project = getProjectOrThrow(store, projectId);
     project.archivedAt = nowIso();
     project.updatedAt = nowIso();
     return project;
@@ -307,57 +366,18 @@ export async function archiveProject(projectId: number) {
 }
 
 export async function getProjectDetail(projectId: number) {
-  const data = withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
-    if (!project) return null;
-
-    const searches = store.searches
-      .filter((search) => search.projectId === projectId)
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-
-    const pinnedPatents = store.patents.filter((patent) => patent.projectId === projectId);
-    const collections = store.collections.filter((collection) => collection.projectId === projectId);
-    const comments = store.comments
-      .filter((comment) => comment.projectId === projectId)
-      .map((comment) => ({
-        ...comment,
-        author: store.users.find((user) => user.id === comment.authorId),
-      }))
-      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
-
-    const shares = store.shares
-      .filter((share) => share.projectId === projectId)
-      .map((share) => ({ ...share, user: store.users.find((user) => user.id === share.userId) }))
-      .sort((a, b) => +new Date(a.grantedAt) - +new Date(b.grantedAt));
-
-    return {
-      project: computeProjectStats(store, project),
-      searches,
-      pinnedPatents,
-      collections,
-      comments,
-      shares,
-    };
-  });
-
-  if (!data) {
-    throw new Error('Project not found');
-  }
-
-  return data;
+  return withStore((store) => projectDetailPayload(store, projectId));
 }
 
 export async function saveSearchToProject(projectId: number, input: SaveSearchInput) {
   return withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
-    if (!project) throw new Error('Project not found');
-
+    const project = getProjectOrThrow(store, projectId);
     const timestamp = nowIso();
     const filingYears = input.cachedResults
       .map((patent) => Number.parseInt(patent.filingDate.slice(0, 4), 10))
       .filter((year) => Number.isFinite(year));
 
-    const savedSearch: SavedSearch = {
+    const search: SavedSearch = {
       id: nextId(store, 'search'),
       projectId,
       queryString: input.queryString,
@@ -369,23 +389,21 @@ export async function saveSearchToProject(projectId: number, input: SaveSearchIn
       latestFilingYear: filingYears.length ? Math.max(...filingYears) : undefined,
       runAt: timestamp,
       createdAt: timestamp,
-      watchFrequency: input.watchFrequency || 'NONE',
-      lastAlertRunAt: undefined,
+      watchFrequency: normalizeWatchFrequency(input.watchFrequency),
       alertRunCount: 0,
-      lastAlertResultCount: input.cachedResults.length,
       newSinceLastRun: 0,
+      lastAlertResultCount: input.cachedResults.length,
       notes: input.notes,
-      cachedStats: {
+      cachedStats: input.cachedStats || {
         topAssignees: [],
         filingTrend: [],
         technologyDistribution: [],
       },
     };
 
-    store.searches.push(savedSearch);
+    store.searches.push(search);
     project.updatedAt = timestamp;
-
-    return savedSearch;
+    return search;
   });
 }
 
@@ -395,12 +413,9 @@ export async function deleteSavedSearch(projectId: number, searchId: number) {
     store.searches = store.searches.filter(
       (search) => !(search.projectId === projectId && search.id === searchId)
     );
-
     if (before === store.searches.length) throw new Error('Saved search not found');
-
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
     return { success: true };
   });
 }
@@ -416,11 +431,16 @@ export async function updateSavedSearchWatchFrequency(
     );
     if (!search) throw new Error('Saved search not found');
 
-    search.watchFrequency = input.watchFrequency;
+    search.watchFrequency = normalizeWatchFrequency(input.watchFrequency);
+    if (search.watchFrequency === 'NONE') {
+      search.lastAlertRunAt = undefined;
+      search.alertRunCount = 0;
+      search.newSinceLastRun = 0;
+      search.lastAlertResultCount = search.resultCount;
+    }
 
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
     return search;
   });
 }
@@ -432,31 +452,24 @@ export async function triggerSavedSearchAlert(projectId: number, searchId: numbe
     );
     if (!search) throw new Error('Saved search not found');
 
-    const runCount = (search.alertRunCount || 0) + 1;
-    const simulatedNewCount = (search.id + runCount) % 4;
-    const timestamp = nowIso();
+    const previousCount = search.lastAlertResultCount ?? search.resultCount;
+    const simulatedNewCount = Math.max(1, Math.ceil(search.resultCount * 0.1));
 
-    search.alertRunCount = runCount;
-    search.lastAlertRunAt = timestamp;
-    search.newSinceLastRun = simulatedNewCount;
-    search.lastAlertResultCount = search.resultCount + simulatedNewCount;
-    search.runAt = timestamp;
+    search.lastAlertRunAt = nowIso();
+    search.alertRunCount = (search.alertRunCount || 0) + 1;
+    search.lastAlertResultCount = search.resultCount;
+    search.newSinceLastRun = Math.max(0, search.resultCount - previousCount) || simulatedNewCount;
 
     const project = store.projects.find((entry) => entry.id === projectId);
-    if (project) project.updatedAt = timestamp;
+    if (project) project.updatedAt = nowIso();
 
-    return {
-      search,
-      simulatedNewCount,
-    };
+    return { search, simulatedNewCount };
   });
 }
 
 export async function addProjectComment(projectId: number, input: AddCommentInput) {
   return withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
-    if (!project) throw new Error('Project not found');
-
+    const project = getProjectOrThrow(store, projectId);
     const timestamp = nowIso();
     const comment: Comment = {
       id: nextId(store, 'comment'),
@@ -472,7 +485,6 @@ export async function addProjectComment(projectId: number, input: AddCommentInpu
 
     store.comments.push(comment);
     project.updatedAt = timestamp;
-
     return comment;
   });
 }
@@ -483,21 +495,16 @@ export async function deleteProjectComment(projectId: number, commentId: number)
     store.comments = store.comments.filter(
       (comment) => !(comment.projectId === projectId && comment.id === commentId)
     );
-
     if (before === store.comments.length) throw new Error('Comment not found');
-
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
     return { success: true };
   });
 }
 
 export async function addProjectShare(projectId: number, input: AddShareInput) {
   return withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
-    if (!project) throw new Error('Project not found');
-
+    const project = getProjectOrThrow(store, projectId);
     const user = getOrCreateUserByEmail(store, input.userEmail);
     const existing = store.shares.find(
       (share) => share.projectId === projectId && share.userId === user.id
@@ -507,6 +514,7 @@ export async function addProjectShare(projectId: number, input: AddShareInput) {
       existing.role = input.role;
       existing.grantedAt = nowIso();
       existing.user = user;
+      project.updatedAt = nowIso();
       return existing;
     }
 
@@ -521,7 +529,6 @@ export async function addProjectShare(projectId: number, input: AddShareInput) {
 
     store.shares.push(share);
     project.updatedAt = nowIso();
-
     return share;
   });
 }
@@ -535,10 +542,8 @@ export async function removeProjectShare(projectId: number, shareId: number) {
     if (target.userId === CURRENT_USER_ID) throw new Error('Cannot remove project owner');
 
     store.shares = store.shares.filter((share) => share.id !== shareId);
-
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
     return { success: true };
   });
 }
@@ -554,10 +559,8 @@ export async function updateProjectShareRole(
     if (share.userId === CURRENT_USER_ID) throw new Error('Cannot change owner role');
 
     share.role = role;
-
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
     return share;
   });
 }
@@ -568,39 +571,24 @@ export async function deletePinnedPatent(projectId: number, patentReferenceId: n
     store.patents = store.patents.filter(
       (patent) => !(patent.projectId === projectId && patent.id === patentReferenceId)
     );
-
     if (before === store.patents.length) throw new Error('Pinned patent not found');
-
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
     return { success: true };
   });
 }
 
 export async function listProjectCollections(projectId: number) {
-  const collections = withStore((store) =>
-    store.collections
+  return withStore((store) => ({
+    collections: store.collections
       .filter((collection) => collection.projectId === projectId)
-      .sort((a, b) => a.name.localeCompare(b.name))
-  );
-
-  return { collections };
+      .sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)),
+  }));
 }
 
 export async function createProjectCollection(projectId: number, input: CreateCollectionInput) {
   return withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
-    if (!project) throw new Error('Project not found');
-
-    const existing = store.collections.find(
-      (collection) =>
-        collection.projectId === projectId &&
-        collection.name.trim().toLowerCase() === input.name.trim().toLowerCase()
-    );
-
-    if (existing) return existing;
-
+    const project = getProjectOrThrow(store, projectId);
     const collection: Collection = {
       id: nextId(store, 'collection'),
       projectId,
@@ -608,7 +596,6 @@ export async function createProjectCollection(projectId: number, input: CreateCo
       description: input.description?.trim() || undefined,
       createdAt: nowIso(),
     };
-
     store.collections.push(collection);
     project.updatedAt = nowIso();
     return collection;
@@ -617,40 +604,18 @@ export async function createProjectCollection(projectId: number, input: CreateCo
 
 export async function pinPatentToProject(projectId: number, input: PinPatentInput) {
   return withStore((store) => {
-    const project = store.projects.find((entry) => entry.id === projectId && !entry.archivedAt);
-    if (!project) throw new Error('Project not found');
+    const project = getProjectOrThrow(store, projectId);
+    const collectionExists =
+      input.collectionId === undefined ||
+      store.collections.some(
+        (collection) => collection.id === input.collectionId && collection.projectId === projectId
+      );
+    if (!collectionExists) throw new Error('Collection not found');
 
-    const existing = store.patents.find(
-      (patent) => patent.projectId === projectId && patent.patentId === input.patent.patentNumber
-    );
-
-    if (existing) {
-      if (input.notes?.trim()) {
-        existing.notes = input.notes.trim();
-      }
-
-      existing.patentData.independentClaims = input.patent.independentClaims;
-      existing.patentData.dependentClaimsSummary = input.patent.dependentClaimsSummary;
-      existing.patentData.legalStatus = input.patent.legalStatus;
-
-      if (input.collectionId) {
-        const nextCollectionIds = new Set(existing.collectionIds || []);
-        nextCollectionIds.add(input.collectionId);
-        existing.collectionIds = Array.from(nextCollectionIds);
-      }
-
-      if (!existing.status) {
-        existing.status = 'TO_REVIEW';
-      }
-
-      project.updatedAt = nowIso();
-      return existing;
-    }
-
-    const reference: PatentReference = {
+    const patentReference: PatentReference = {
       id: nextId(store, 'patent'),
       projectId,
-      patentId: input.patent.patentNumber,
+      patentId: input.patent.id,
       patentData: {
         patentNumber: input.patent.patentNumber,
         title: input.patent.title,
@@ -663,20 +628,20 @@ export async function pinPatentToProject(projectId: number, input: PinPatentInpu
         inventors: input.patent.inventors,
         provider: input.patent.provider,
         url: input.patent.url,
+        legalStatus: input.patent.legalStatus,
         familyId: input.patent.familyId,
         isFamilyRepresentative: input.patent.isFamilyRepresentative,
-        legalStatus: input.patent.legalStatus,
+        familySize: input.patent.familySize,
       },
       pinnedAt: nowIso(),
       status: 'TO_REVIEW',
-      notes: input.notes?.trim() || undefined,
-      collectionIds: input.collectionId ? [input.collectionId] : undefined,
+      notes: input.notes,
+      collectionIds: input.collectionId ? [input.collectionId] : [],
     };
 
-    store.patents.push(reference);
+    store.patents.push(patentReference);
     project.updatedAt = nowIso();
-
-    return reference;
+    return patentReference;
   });
 }
 
@@ -686,18 +651,15 @@ export async function updatePatentReviewStatus(
   input: UpdatePatentReviewStatusInput
 ) {
   return withStore((store) => {
-    const patentRef = store.patents.find(
-      (patent) => patent.projectId === projectId && patent.id === patentReferenceId
+    const patent = store.patents.find(
+      (entry) => entry.projectId === projectId && entry.id === patentReferenceId
     );
-    if (!patentRef) throw new Error('Pinned patent not found');
-
-    patentRef.status = input.status;
-    patentRef.statusReason = input.statusReason?.trim() || undefined;
-
+    if (!patent) throw new Error('Pinned patent not found');
+    patent.status = input.status;
+    patent.statusReason = input.statusReason?.trim() || undefined;
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
-    return patentRef;
+    return patent;
   });
 }
 
@@ -706,27 +668,20 @@ export async function bulkUpdatePatentReviewStatus(
   input: BulkUpdatePatentReviewStatusInput
 ) {
   return withStore((store) => {
-    const targetIds = new Set(input.patentReferenceIds);
-    if (targetIds.size === 0) {
-      return { updated: 0 };
-    }
-
-    let updated = 0;
-    store.patents.forEach((patentRef) => {
-      if (patentRef.projectId !== projectId || !targetIds.has(patentRef.id)) return;
-      patentRef.status = input.status;
-      patentRef.statusReason = input.statusReason?.trim() || undefined;
-      updated += 1;
+    const updated: PatentReference[] = [];
+    input.patentReferenceIds.forEach((patentReferenceId) => {
+      const patent = store.patents.find(
+        (entry) => entry.projectId === projectId && entry.id === patentReferenceId
+      );
+      if (patent) {
+        patent.status = input.status;
+        patent.statusReason = input.statusReason?.trim() || undefined;
+        updated.push(patent);
+      }
     });
-
-    if (updated === 0) {
-      throw new Error('No pinned patents found for update');
-    }
-
     const project = store.projects.find((entry) => entry.id === projectId);
     if (project) project.updatedAt = nowIso();
-
-    return { updated };
+    return updated;
   });
 }
 
@@ -735,18 +690,24 @@ export async function compareSavedSearches(
   searchIds: number[]
 ): Promise<SearchComparisonResponse> {
   return withStore((store) => {
-    const searches = store.searches.filter(
-      (search) => search.projectId === projectId && searchIds.includes(search.id)
-    );
+    const searches = store.searches
+      .filter((search) => search.projectId === projectId && searchIds.includes(search.id))
+      .map(hydrateSearch);
 
     const mergedTimelineMap = new Map<number, Record<string, number>>();
+    const assigneeMap = new Map<string, Record<string, number>>();
 
     searches.forEach((search) => {
-      const trend = search.cachedStats?.filingTrend || [];
-      trend.forEach((point) => {
+      (search.cachedStats?.filingTrend || []).forEach((point) => {
         const existing = mergedTimelineMap.get(point.year) || {};
         existing[String(search.id)] = point.count;
         mergedTimelineMap.set(point.year, existing);
+      });
+
+      (search.cachedStats?.topAssignees || []).forEach((item) => {
+        const existing = assigneeMap.get(item.name) || {};
+        existing[String(search.id)] = item.count;
+        assigneeMap.set(item.name, existing);
       });
     });
 
@@ -754,34 +715,85 @@ export async function compareSavedSearches(
       .sort((a, b) => a[0] - b[0])
       .map(([year, values]) => ({ year, ...values }));
 
-    const assigneeCounter = new Map<string, Record<string, number>>();
-    searches.forEach((search) => {
-      const topAssignees = search.cachedStats?.topAssignees || [];
-      topAssignees.forEach((item) => {
-        const key = item.name;
-        const existing = assigneeCounter.get(key) || {};
-        existing[String(search.id)] = item.count;
-        assigneeCounter.set(key, existing);
-      });
-    });
-
-    const assigneeComparison = Array.from(assigneeCounter.entries()).map(([assigneeName, values]) => ({
+    const assigneeComparison = Array.from(assigneeMap.entries()).map(([assigneeName, values]) => ({
       assigneeName,
       ...values,
     }));
 
-    const firstClasses = new Set(
-      (searches[0]?.cachedStats?.technologyDistribution || []).map((entry) => entry.class)
-    );
-    const sharedCpcClasses = searches.length <= 1
-      ? Array.from(firstClasses)
-      : Array.from(firstClasses).filter((cpc) =>
-          searches.slice(1).every((search) =>
-            (search.cachedStats?.technologyDistribution || []).some((entry) => entry.class === cpc)
-          )
-        );
+    const sharedAssignees = searches.length
+      ? Array.from(new Set(searches[0].cachedStats?.topAssignees?.map((item) => item.name) || [])).filter(
+          (name) =>
+            searches.slice(1).every((search) =>
+              (search.cachedStats?.topAssignees || []).some((item) => item.name === name)
+            )
+        )
+      : [];
 
-    const assigneeSets = searches.map(
+    const firstClasses = new Set(
+      searches[0]?.cachedStats?.technologyDistribution?.map((item) => item.class) || []
+    );
+    const sharedCpcClasses = searches.length
+      ? Array.from(firstClasses).filter((cpc) =>
+          searches.slice(1).every((search) =>
+            (search.cachedStats?.technologyDistribution || []).some((item) => item.class === cpc)
+          )
+        )
+      : [];
+
+    const overlapBase = searches.reduce((sum, search) => sum + Math.max(search.resultCount, 1), 0);
+    const estimatedOverlapPercentage = overlapBase
+      ? Math.min(100, Math.round((sharedAssignees.length * 100) / overlapBase))
+      : 0;
+
+    return {
+      searches: searches.map((search) => ({
+        id: search.id,
+        queryString: search.queryString,
+        resultCount: search.resultCount,
+        earliestFilingYear: search.earliestFilingYear,
+        latestFilingYear: search.latestFilingYear,
+      })),
+      mergedTimeline,
+      assigneeComparison,
+      overlap: {
+        sharedAssignees,
+        sharedCpcClasses,
+        estimatedOverlapPercentage,
+      },
+      statistics: searches.reduce((acc, search) => {
+        const earliest = search.earliestFilingYear ?? 0;
+        const latest = search.latestFilingYear ?? earliest;
+        acc[String(search.id)] = {
+          avgFilingYear: earliest && latest ? (earliest + latest) / 2 : 0,
+          medianFilingYear: earliest && latest ? (earliest + latest) / 2 : 0,
+        };
+        return acc;
+      }, {} as SearchComparisonResponse['statistics']),
+    };
+  });
+}
+
+export async function getSearchForExport(projectId: number, searchId: number) {
+  return withStore((store) => {
+    const search = store.searches.find(
+      (entry) => entry.projectId === projectId && entry.id === searchId
+    );
+    if (!search) throw new Error('Saved search not found');
+    return hydrateSearch(search);
+  });
+}
+
+export async function getPatentsForExport(projectId: number) {
+  return withStore((store) =>
+    store.patents.filter((patent) => patent.projectId === projectId).map(hydratePatentReference)
+  );
+}
+
+export function __resetProjectStoreForTests() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.removeItem(STORAGE_KEY);
+  }
+}
       (search) => new Set((search.cachedStats?.topAssignees || []).map((entry) => entry.name))
     );
     const sharedAssignees = assigneeSets.length <= 1
