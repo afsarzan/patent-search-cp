@@ -7,18 +7,6 @@ import {
   PatentReference,
   Project,
   ProjectShare,
-  SearchComparisonResponse,
-  SavedSearch,
-  User,
-import { Patent, PatentProvider } from '@/lib/patentApi';
-import {
-  Comment,
-  Collection,
-  isPatentReviewStatus,
-  PatentReviewStatus,
-  PatentReference,
-  Project,
-  ProjectShare,
   SavedSearch,
   SearchComparisonResponse,
   User,
@@ -373,6 +361,11 @@ export async function saveSearchToProject(projectId: number, input: SaveSearchIn
   return withStore((store) => {
     const project = getProjectOrThrow(store, projectId);
     const timestamp = nowIso();
+    const cachedStats = {
+      topAssignees: input.cachedStats?.topAssignees ?? [],
+      filingTrend: input.cachedStats?.filingTrend ?? [],
+      technologyDistribution: input.cachedStats?.technologyDistribution ?? [],
+    };
     const filingYears = input.cachedResults
       .map((patent) => Number.parseInt(patent.filingDate.slice(0, 4), 10))
       .filter((year) => Number.isFinite(year));
@@ -394,11 +387,7 @@ export async function saveSearchToProject(projectId: number, input: SaveSearchIn
       newSinceLastRun: 0,
       lastAlertResultCount: input.cachedResults.length,
       notes: input.notes,
-      cachedStats: input.cachedStats || {
-        topAssignees: [],
-        filingTrend: [],
-        technologyDistribution: [],
-      },
+      cachedStats,
     };
 
     store.searches.push(search);
@@ -787,71 +776,6 @@ export async function getPatentsForExport(projectId: number) {
   return withStore((store) =>
     store.patents.filter((patent) => patent.projectId === projectId).map(hydratePatentReference)
   );
-}
-
-export function __resetProjectStoreForTests() {
-  if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.removeItem(STORAGE_KEY);
-  }
-}
-      (search) => new Set((search.cachedStats?.topAssignees || []).map((entry) => entry.name))
-    );
-    const sharedAssignees = assigneeSets.length <= 1
-      ? Array.from(assigneeSets[0] || [])
-      : Array.from(assigneeSets[0]).filter((name) => assigneeSets.slice(1).every((set) => set.has(name)));
-
-    const overlapBase = searches.reduce((sum, search) => sum + Math.max(search.resultCount, 1), 0);
-    const overlapEstimate = overlapBase
-      ? Math.round((sharedAssignees.length * 100) / overlapBase)
-      : 0;
-
-    return {
-      searches: searches.map((search) => ({
-        id: search.id,
-        queryString: search.queryString,
-        resultCount: search.resultCount,
-        earliestFilingYear: search.earliestFilingYear,
-        latestFilingYear: search.latestFilingYear,
-      })),
-      mergedTimeline,
-      assigneeComparison,
-      overlap: {
-        sharedAssignees,
-        sharedCpcClasses,
-        estimatedOverlapPercentage: overlapEstimate,
-      },
-      statistics: searches.reduce(
-        (acc, search) => {
-          const earliest = search.earliestFilingYear || 0;
-          const latest = search.latestFilingYear || earliest;
-          const avg = earliest && latest ? (earliest + latest) / 2 : 0;
-          acc[String(search.id)] = {
-            avgFilingYear: avg,
-            medianFilingYear: avg,
-          };
-          return acc;
-        },
-        {} as SearchComparisonResponse['statistics']
-      ),
-    };
-  });
-}
-
-export async function getSearchForExport(projectId: number, searchId: number) {
-  return withStore((store) => {
-    const search = store.searches.find(
-      (entry) => entry.projectId === projectId && entry.id === searchId
-    );
-    if (!search) throw new Error('Saved search not found');
-    return search;
-  });
-}
-
-export async function getPatentsForExport(projectId: number) {
-  return withStore((store) => {
-    const patents = store.patents.filter((entry) => entry.projectId === projectId);
-    return patents;
-  });
 }
 
 export function __resetProjectStoreForTests() {
