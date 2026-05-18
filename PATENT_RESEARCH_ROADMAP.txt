@@ -1,5 +1,5 @@
 Patent Explorer Roadmap
-Last updated: 2026-03-22
+Last updated: 2026-05-18
 
 Goal
 Evolve the app from basic search and project organization into a practical patent research workspace for prior-art, competitive intelligence, and ongoing monitoring.
@@ -83,6 +83,8 @@ Acceptance criteria
 - Fielded terms and Boolean operators are honored in result filtering.
 - Query string and parsed form are both persisted with saved search.
 
+done --
+
 3) Review Workflow States
 Why
 - Teams need triage status, not just pinned/not pinned.
@@ -108,6 +110,8 @@ Acceptance criteria
 - Status can be updated and persists after reload.
 - Bulk update works for multi-select.
 - Status counts visible in UI.
+
+done --
 
 --------------------------------------------------
 PHASE 2 (Core Research Depth, 2-4 sprints)
@@ -251,18 +255,18 @@ Performance
 --------------------------------------------------
 Suggested Next Session Plan (practical)
 --------------------------------------------------
-Start with Phase 1, Item 1 (Advanced Filters + Facets).
+Start with Phase 2, Item 4 (Patent Family + Dedup View).
 
 Session checklist
-1. Add filter state to Index page and SearchBar UI.
-2. Implement filtering in patentApi mock functions.
-3. Show active filter chips and clear-all action.
-4. Add/update tests in patentApi.test.ts and SearchBar tests.
-5. Validate with npm test and manual smoke check.
+1. Add a family grouping toggle in PatentTable.
+2. Extend patentApi mock data with family IDs and representative flags.
+3. Add collapsible family rows without losing per-patent detail.
+4. Update tests for grouped and flat patent views.
+5. Validate with npm test and a manual smoke check.
 
 Definition of done for next session
-- User can combine at least 3 filters.
-- Search results, counts, and charts respond correctly.
-- Tests cover filter combinations and reset behavior.
+- User can switch between flat and family-grouped views.
+- Family members are visible and representative patents are clear.
+- Tests cover grouping, expansion, and fallback behavior.
 
 End of roadmap.
